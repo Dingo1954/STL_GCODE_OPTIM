@@ -1,0 +1,5 @@
+{
+  "name": "BambuLab Optimerer",
+  "description": "Et værktøj til at optimere STL-filer for styrke og analysere GCODE-filer for køle- og hastighedsproblemer til Bambu Lab A1 Mini.",
+  "requestFramePermissions": []
+}
