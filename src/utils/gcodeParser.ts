@@ -235,3 +235,107 @@ export async function parseGCode(
   
   return layers;
 }
+
+export interface GCodePathLayer {
+  layerNum: number;
+  z: number;
+  positions: Float32Array; // [x1, y1, z1, x2, y2, z2, ...] for LineSegments
+}
+
+export async function parseGCodePath(
+  file: File,
+  onProgress: (progress: number) => void
+): Promise<GCodePathLayer[]> {
+  const text = await file.text();
+  const lines = text.split('\n');
+  
+  const layers: GCodePathLayer[] = [];
+  
+  let currentX = 0, currentY = 0, currentZ = 0, currentE = 0;
+  let isRelativeE = false;
+  let highestZ = -999;
+  let layerNum = 0;
+  
+  let currentLayerPositions: number[] = [];
+  
+  const chunkSize = 50000;
+  
+  for (let i = 0; i < lines.length; i += chunkSize) {
+    const chunk = lines.slice(i, i + chunkSize);
+    
+    for (const line of chunk) {
+      if (line.startsWith('M83')) {
+        isRelativeE = true;
+        continue;
+      } else if (line.startsWith('M82')) {
+        isRelativeE = false;
+        continue;
+      }
+
+      if (!line.startsWith('G0') && !line.startsWith('G1')) continue;
+      
+      const parts = line.split(' ');
+      let newX = currentX, newY = currentY, newZ = currentZ;
+      let parsedE: number | null = null;
+      
+      for (const part of parts) {
+        if (part.startsWith('X')) newX = parseFloat(part.substring(1));
+        if (part.startsWith('Y')) newY = parseFloat(part.substring(1));
+        if (part.startsWith('Z')) newZ = parseFloat(part.substring(1));
+        if (part.startsWith('E')) parsedE = parseFloat(part.substring(1));
+      }
+      
+      let de = 0;
+      let newE = currentE;
+      if (parsedE !== null) {
+        if (isRelativeE) {
+          de = parsedE;
+          newE = currentE + de;
+        } else {
+          de = parsedE - currentE;
+          newE = parsedE;
+        }
+      }
+
+      if (newZ > highestZ + 0.001) {
+        if (currentLayerPositions.length > 0) {
+          layers.push({
+            layerNum,
+            z: highestZ,
+            positions: new Float32Array(currentLayerPositions)
+          });
+        }
+        highestZ = newZ;
+        layerNum++;
+        currentLayerPositions = [];
+      }
+      
+      if (de > 0) {
+        // Extrusion move - add line segment
+        // Three.js uses Y up, Z forward by default. GCode uses Z up.
+        // We map X->X, Y->Z, Z->Y to match standard Three.js axes, or we can just keep them raw
+        // and rotate the group. Let's keep them raw: X, Y, Z.
+        currentLayerPositions.push(currentX, currentY, currentZ);
+        currentLayerPositions.push(newX, newY, newZ);
+      }
+      
+      currentX = newX;
+      currentY = newY;
+      currentZ = newZ;
+      currentE = newE;
+    }
+    
+    await new Promise(r => setTimeout(r, 0));
+    onProgress(Math.min(100, Math.round((i / lines.length) * 100)));
+  }
+  
+  if (currentLayerPositions.length > 0) {
+    layers.push({
+      layerNum,
+      z: highestZ,
+      positions: new Float32Array(currentLayerPositions)
+    });
+  }
+  
+  return layers;
+}

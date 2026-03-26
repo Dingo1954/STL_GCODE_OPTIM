@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
+import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff } from 'lucide-react';
+import { parseGCodePath, GCodePathLayer } from '../utils/gcodeParser';
 
 export default function STLTab() {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
@@ -14,6 +15,13 @@ export default function STLTab() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [optimizationMessage, setOptimizationMessage] = useState<string | null>(null);
+
+  // GCode Overlay States
+  const [gcodeLayers, setGcodeLayers] = useState<GCodePathLayer[]>([]);
+  const [showGCode, setShowGCode] = useState<boolean>(true);
+  const [currentLayerIndex, setCurrentLayerIndex] = useState<number>(0);
+  const [gcodeUploadStatus, setGcodeUploadStatus] = useState<'idle' | 'reading' | 'parsing' | 'success' | 'error'>('idle');
+  const [gcodeCenter, setGcodeCenter] = useState<THREE.Vector3>(new THREE.Vector3());
 
   const handleAutoOptimize = () => {
     if (!dimensions) return;
@@ -97,6 +105,49 @@ export default function STLTab() {
       setErrorMessage('Fejl ved læsning af fil.');
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const handleGCodeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setGcodeUploadStatus('parsing');
+    
+    try {
+      const layers = await parseGCodePath(file, () => {});
+      
+      // Calculate center of the GCode path to align it with the STL
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+      
+      layers.forEach(layer => {
+        for (let i = 0; i < layer.positions.length; i += 3) {
+          const x = layer.positions[i];
+          const y = layer.positions[i+1];
+          const z = layer.positions[i+2];
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          if (z < minZ) minZ = z;
+          if (z > maxZ) maxZ = z;
+        }
+      });
+      
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const cz = (minZ + maxZ) / 2;
+      
+      setGcodeCenter(new THREE.Vector3(cx, cy, cz));
+      setGcodeLayers(layers);
+      setCurrentLayerIndex(Math.floor(layers.length / 2));
+      setGcodeUploadStatus('success');
+      setShowGCode(true);
+    } catch (err) {
+      console.error(err);
+      setGcodeUploadStatus('error');
+    }
   };
 
   const rotate = (axis: 'x' | 'y' | 'z', deg: number) => {
@@ -256,6 +307,61 @@ export default function STLTab() {
                 </button>
               </div>
             </div>
+
+            <div className="pt-4 border-t border-zinc-800">
+              <h3 className="text-sm font-medium text-zinc-300 mb-2">GCode Overlay</h3>
+              <p className="text-xs text-zinc-500 mb-4">
+                Upload en GCode fil for at visualisere printstien ovenpå din 3D model.
+              </p>
+              
+              {gcodeLayers.length === 0 ? (
+                <label className={`flex flex-col items-center justify-center w-full h-20 border border-dashed rounded-lg cursor-pointer transition-colors ${
+                  gcodeUploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
+                  'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800'
+                }`}>
+                  <div className="flex items-center justify-center gap-2">
+                    {gcodeUploadStatus === 'parsing' ? (
+                      <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                    ) : (
+                      <Layers className="w-4 h-4 text-zinc-400" />
+                    )}
+                    <span className="text-sm text-zinc-400">
+                      {gcodeUploadStatus === 'parsing' ? 'Analyserer GCode...' : 'Upload GCode fil'}
+                    </span>
+                  </div>
+                  <input type="file" accept=".gcode" className="hidden" onChange={handleGCodeUpload} disabled={gcodeUploadStatus === 'parsing'} />
+                </label>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">Vis GCode sti</span>
+                    <button 
+                      onClick={() => setShowGCode(!showGCode)}
+                      className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                    >
+                      {showGCode ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  
+                  {showGCode && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-zinc-400">
+                        <span>Lag 1</span>
+                        <span className="font-medium text-emerald-400">Lag {currentLayerIndex + 1} / {gcodeLayers.length}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max={gcodeLayers.length - 1} 
+                        value={currentLayerIndex} 
+                        onChange={(e) => setCurrentLayerIndex(parseInt(e.target.value))}
+                        className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -278,6 +384,22 @@ export default function STLTab() {
               <mesh geometry={geometry} rotation={rotation}>
                 <meshStandardMaterial color="#F27D26" roughness={0.4} metalness={0.1} />
               </mesh>
+              
+              {showGCode && gcodeLayers.length > 0 && gcodeLayers[currentLayerIndex] && (
+                <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
+                  <lineSegments>
+                    <bufferGeometry>
+                      <bufferAttribute 
+                        attach="attributes-position" 
+                        count={gcodeLayers[currentLayerIndex].positions.length / 3} 
+                        array={gcodeLayers[currentLayerIndex].positions} 
+                        itemSize={3} 
+                      />
+                    </bufferGeometry>
+                    <lineBasicMaterial color="#10b981" linewidth={2} />
+                  </lineSegments>
+                </group>
+              )}
             </Stage>
             <OrbitControls makeDefault />
             <gridHelper args={[200, 20, '#3f3f46', '#27272a']} position={[0, -0.1, 0]} />

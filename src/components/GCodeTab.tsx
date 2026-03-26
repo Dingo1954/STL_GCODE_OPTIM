@@ -249,6 +249,9 @@ export default function GCodeTab() {
                 <div className="text-3xl font-mono text-zinc-100">
                   {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-zinc-500">g</span>
                 </div>
+                <div className="text-sm font-medium text-emerald-400 mt-1">
+                  Pris: {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124 * 0.5).toFixed(2)} kr. <span className="text-xs text-zinc-500 font-normal">(0,50 kr/g)</span>
+                </div>
                 <div className="text-xs text-zinc-500 mt-2">
                   {(stats.totalFilament / 1000).toFixed(2)} m | Gns. flow: {stats.maxFlow.toFixed(1)} mm³/s
                 </div>
@@ -375,8 +378,31 @@ export default function GCodeTab() {
             </div>
           </div>
 
+          {/* Average Speed Chart */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
+            <h3 className="text-zinc-100 font-medium mb-1">Gennemsnitlig Hastighed</h3>
+            <p className="text-xs text-zinc-500 mb-6">Gennemsnitlig printhastighed per lag. Markering ved kritisk lav hastighed (40 mm/s).</p>
+            <div className="flex-1 w-full min-h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={layers} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis dataKey="layerNum" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                  <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
+                    labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                    formatter={(value: number) => [`${value.toFixed(0)} mm/s`, 'Gns. Hastighed']}
+                    labelFormatter={(label) => `Lag ${label}`}
+                  />
+                  <ReferenceLine y={40} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Kritisk grænse (40 mm/s)', fill: '#ef4444', fontSize: 10 }} />
+                  <Line type="monotone" dataKey="avgSpeed" stroke="#0ea5e9" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           {/* Print vs Travel Time Chart */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col lg:col-span-2">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
             <h3 className="text-zinc-100 font-medium mb-1">Print vs Rejse Tid per Lag</h3>
             <p className="text-xs text-zinc-500 mb-6">Sammenligning af tid brugt på ekstrudering (grøn) vs. rejsebevægelser (orange).</p>
             <div className="flex-1 w-full min-h-[250px]">
@@ -427,12 +453,23 @@ export default function GCodeTab() {
                       <td className="px-4 py-3">{layer.z.toFixed(2)}</td>
                       <td className="px-4 py-3">{formatTime(layer.time)}</td>
                       <td className="px-4 py-3">{layer.avgSpeed.toFixed(0)} mm/s</td>
-                      <td className="px-4 py-3">{Math.round((layer.avgFanSpeed / 255) * 100)}%</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={layer.coolingWarning ? "text-amber-400 font-medium" : ""}>
+                            {Math.round((layer.avgFanSpeed / 255) * 100)}%
+                          </span>
+                          {layer.coolingWarning && (
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 ring-1 ring-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.2)]" title="Køle-advarsel">
+                              <Wind className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         {layer.coolingWarning && (
-                          <div className="flex items-center text-amber-500" title="Køle-advarsel: Kort lag med lav køling, eller langt/langsomt lag med lav køling">
-                            <AlertTriangle className="w-4 h-4 mr-1" />
-                            <span>Køling</span>
+                          <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium" title="Køle-advarsel: Kort lag med lav køling, eller langt/langsomt lag med lav køling">
+                            <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
+                            <span>Køle-advarsel</span>
                           </div>
                         )}
                       </td>
