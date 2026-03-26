@@ -27,6 +27,60 @@ export default function STLTab() {
   const [gcodeCenter, setGcodeCenter] = useState<THREE.Vector3>(new THREE.Vector3());
   const [viewMode, setViewMode] = useState<'solid' | 'wireframe' | 'xray'>('solid');
   const controlsRef = useRef<any>(null);
+  const geometryRef = useRef<THREE.BufferGeometry>(null);
+  
+  // Drag and drop states
+  const [isDraggingStl, setIsDraggingStl] = useState(false);
+  const [isDraggingGcode, setIsDraggingGcode] = useState(false);
+
+  const { combinedGCodePositions, combinedGCodeColors, layerOffsets } = useMemo(() => {
+    if (!gcodeLayers.length) return { combinedGCodePositions: null, combinedGCodeColors: null, layerOffsets: [] };
+    
+    // Calculate total length of all positions
+    let totalLength = 0;
+    const offsets: number[] = [];
+    
+    for (let i = 0; i < gcodeLayers.length; i++) {
+      offsets.push(totalLength);
+      if (gcodeLayers[i]) {
+        totalLength += gcodeLayers[i].positions.length;
+      }
+    }
+    // Add final offset for the end of the last layer
+    offsets.push(totalLength);
+    
+    const combinedPos = new Float32Array(totalLength);
+    const combinedCol = new Float32Array(totalLength);
+    let currentOffset = 0;
+    for (let i = 0; i < gcodeLayers.length; i++) {
+      if (gcodeLayers[i]) {
+        const len = gcodeLayers[i].positions.length;
+        combinedPos.set(gcodeLayers[i].positions, currentOffset);
+        
+        // Use colors if available, otherwise default to green
+        if (gcodeLayers[i].colors && gcodeLayers[i].colors.length === len) {
+          combinedCol.set(gcodeLayers[i].colors, currentOffset);
+        } else {
+          // Fallback to green
+          for (let j = 0; j < len; j+=3) {
+            combinedCol[currentOffset + j] = 0.06; // R (approx #10b981)
+            combinedCol[currentOffset + j + 1] = 0.72; // G
+            combinedCol[currentOffset + j + 2] = 0.5; // B
+          }
+        }
+        currentOffset += len;
+      }
+    }
+    
+    return { combinedGCodePositions: combinedPos, combinedGCodeColors: combinedCol, layerOffsets: offsets };
+  }, [gcodeLayers]);
+
+  useEffect(() => {
+    if (geometryRef.current && layerOffsets.length > 0 && currentLayerIndex >= 0) {
+      const count = layerOffsets[currentLayerIndex + 1] / 3;
+      geometryRef.current.setDrawRange(0, count);
+    }
+  }, [currentLayerIndex, layerOffsets, showGCode]);
 
   const resetCamera = () => {
     if (controlsRef.current) {
@@ -119,9 +173,20 @@ export default function STLTab() {
     setOptimizationMessage(message);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLLabelElement>) => {
+    let file: File | undefined;
+    if ('dataTransfer' in e) {
+      file = e.dataTransfer.files?.[0];
+    } else {
+      file = e.target.files?.[0];
+    }
     if (!file) return;
+    
+    if (file.size > 150 * 1024 * 1024) {
+      setUploadStatus('error');
+      setErrorMessage('Filen er for stor (max 150MB). For at undgå at browseren crasher, er denne grænse indført.');
+      return;
+    }
 
     setFileName(file.name);
     setUploadStatus('reading');
@@ -143,6 +208,8 @@ export default function STLTab() {
             const size = new THREE.Vector3();
             geom.boundingBox.getSize(size);
             setDimensions({ x: size.x, y: size.y, z: size.z });
+            // Center the geometry so it aligns with the centered GCode
+            geom.center();
           }
           
           setGeometry(geom);
@@ -163,9 +230,33 @@ export default function STLTab() {
     reader.readAsArrayBuffer(file);
   };
 
-  const handleGCodeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleReset = () => {
+    setStlUrl(null);
+    setFileName('');
+    setGcodeLayers([]);
+    setGcodeFileName('');
+    setGcodeUploadStatus('idle');
+    setUploadStatus('idle');
+    setErrorMessage(null);
+    setOriginalFile(null);
+    setDimensions(null);
+  };
+
+  const handleGCodeUpload = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLLabelElement>) => {
+    let file: File | undefined;
+    if ('dataTransfer' in e) {
+      file = e.dataTransfer.files?.[0];
+    } else {
+      file = e.target.files?.[0];
+    }
     if (!file) return;
+    
+    if (file.size > 150 * 1024 * 1024) {
+      setGcodeUploadStatus('error');
+      // We don't have a dedicated error message state for GCode yet, but we can just reset
+      alert('GCode filen er for stor (max 150MB).');
+      return;
+    }
 
     // Infer filename from STL if the uploaded file has a generic name or we want to link them
     let newGcodeFileName = file.name;
@@ -236,11 +327,17 @@ export default function STLTab() {
           </p>
         </div>
 
-        <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-          uploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
-          uploadStatus === 'success' ? 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20' :
-          'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
-        }`}>
+        <label 
+          className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+            isDraggingStl ? 'border-emerald-500 bg-emerald-500/10' :
+            uploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
+            uploadStatus === 'success' ? 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20' :
+            'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
+          }`}
+          onDragOver={(e) => { e.preventDefault(); setIsDraggingStl(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDraggingStl(false); }}
+          onDrop={(e) => { e.preventDefault(); setIsDraggingStl(false); handleFileUpload(e); }}
+        >
           <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
             {uploadStatus === 'idle' && (
               <>
@@ -281,11 +378,21 @@ export default function STLTab() {
 
         {geometry && (
           <div className="space-y-6">
-            <div className="bg-zinc-800/50 p-4 rounded-lg border border-zinc-700/50">
-              <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-                <Info className="w-4 h-4" />
-                Dimensioner (mm)
-              </h3>
+            <div className="bg-zinc-800/50 p-4 rounded-lg border border-zinc-700/50" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  Dimensioner (mm)
+                </h3>
+                <button 
+                  onClick={handleReset}
+                  className="text-xs flex items-center gap-1 text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-900/50 px-2 py-1 rounded border border-red-900/50 transition-colors"
+                  title="Nulstil og fjern fil"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Nulstil
+                </button>
+              </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-zinc-900 p-2 rounded">
                   <div className="text-xs text-zinc-500">X</div>
@@ -304,6 +411,7 @@ export default function STLTab() {
               <button 
                 onClick={handleAutoOptimize}
                 className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+                title="Forsøger automatisk at finde den bedste orientering for modellen for at minimere behovet for supportmateriale og maksimere styrken."
               >
                 <Wand2 className="w-4 h-4" />
                 Auto-Optimér
@@ -316,7 +424,7 @@ export default function STLTab() {
               )}
             </div>
 
-            <div>
+            <div title="Rotér modellen for at sikre at de svageste punkter (mellem lagene) ikke udsættes for direkte belastning.">
               <h3 className="text-sm font-medium text-zinc-300 mb-3">Rotér for styrke</h3>
               <p className="text-xs text-zinc-500 mb-4">
                 Husk: FDM-print er svagest mellem lagene (Z-aksen). Rotér din model så belastningen ligger langs X/Y-aksen.
@@ -347,7 +455,7 @@ export default function STLTab() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-zinc-800">
+            <div className="pt-4 border-t border-zinc-800" title="At øge antallet af vægge (perimeters) er ofte den mest effektive måde at øge en 3D-printet dels styrke på, frem for at øge infill.">
               <h3 className="text-sm font-medium text-zinc-300 mb-2">Styrk med ekstra vægge</h3>
               <p className="text-xs text-zinc-500 mb-4">
                 Mange tror infill giver styrke, men væggene (walls) bærer den største belastning. At øge fra 2 til 4 vægge kan gøre din del op til 2-3x stærkere!
@@ -397,10 +505,16 @@ export default function STLTab() {
               </p>
               
               {gcodeLayers.length === 0 ? (
-                <label className={`flex flex-col items-center justify-center w-full h-20 border border-dashed rounded-lg cursor-pointer transition-colors ${
-                  gcodeUploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
-                  'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800'
-                }`}>
+                <label 
+                  className={`flex flex-col items-center justify-center w-full h-20 border border-dashed rounded-lg cursor-pointer transition-colors ${
+                    isDraggingGcode ? 'border-emerald-500 bg-emerald-500/10' :
+                    gcodeUploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
+                    'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingGcode(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); setIsDraggingGcode(false); }}
+                  onDrop={(e) => { e.preventDefault(); setIsDraggingGcode(false); handleGCodeUpload(e); }}
+                >
                   <div className="flex items-center justify-center gap-2">
                     {gcodeUploadStatus === 'parsing' ? (
                       <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
@@ -530,18 +644,24 @@ export default function STLTab() {
                   />
                 </mesh>
                 
-                {showGCode && gcodeLayers.length > 0 && gcodeLayers[currentLayerIndex] && (
+                {showGCode && combinedGCodePositions && combinedGCodeColors && layerOffsets.length > 0 && (
                   <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
                     <lineSegments>
-                      <bufferGeometry>
+                      <bufferGeometry ref={geometryRef}>
                         <bufferAttribute 
                           attach="attributes-position" 
-                          count={gcodeLayers[currentLayerIndex].positions.length / 3} 
-                          array={gcodeLayers[currentLayerIndex].positions} 
+                          count={combinedGCodePositions.length / 3} 
+                          array={combinedGCodePositions} 
+                          itemSize={3} 
+                        />
+                        <bufferAttribute 
+                          attach="attributes-color" 
+                          count={combinedGCodeColors.length / 3} 
+                          array={combinedGCodeColors} 
                           itemSize={3} 
                         />
                       </bufferGeometry>
-                      <lineBasicMaterial color="#10b981" linewidth={2} />
+                      <lineBasicMaterial vertexColors={true} linewidth={1} opacity={0.8} transparent />
                     </lineSegments>
                   </group>
                 )}

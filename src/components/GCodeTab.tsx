@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, AlertTriangle, Clock, Zap, Wind, CornerUpRight, Download, FileJson, Ruler, Move, Box, Loader2, File } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, ComposedChart, Bar, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, ComposedChart, Bar, Legend, Brush } from 'recharts';
 import { parseGCode, LayerStat, optimizeGCode } from '../utils/gcodeParser';
 
 interface GCodeStats {
@@ -15,6 +15,8 @@ interface GCodeStats {
   totalPrintTime: number;
   totalTravelTime: number;
   layerHeightConsistency: number; // Standard deviation of layer heights
+  featureTimes: Record<string, number>;
+  boundingBox?: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
 }
 
 export default function GCodeTab() {
@@ -24,10 +26,13 @@ export default function GCodeTab() {
   const [stats, setStats] = useState<GCodeStats>({ 
     totalTime: 0, maxSpeed: 0, avgSpeed: 0, layerCount: 0, maxFlow: 0, 
     coolingWarnings: 0, cornerWarnings: 0, totalFilament: 0, totalPrintTime: 0, 
-    totalTravelTime: 0, layerHeightConsistency: 0 
+    totalTravelTime: 0, layerHeightConsistency: 0, featureTimes: {} 
   });
   const [fileName, setFileName] = useState<string>('');
+  const [compareStats, setCompareStats] = useState<GCodeStats | null>(null);
+  const [compareFileName, setCompareFileName] = useState<string>('');
   const [visibleLayersCount, setVisibleLayersCount] = useState(100);
+  const [xAxisMode, setXAxisMode] = useState<'layer' | 'z'>('layer');
   const [error, setError] = useState<string | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -71,9 +76,22 @@ export default function GCodeTab() {
     return { isValid: true };
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const [isDragging, setIsDragging] = useState(false);
+  const [flowMultiplier, setFlowMultiplier] = useState<number>(100);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLLabelElement>) => {
+    let file: File | undefined;
+    if ('dataTransfer' in e) {
+      file = e.dataTransfer.files?.[0];
+    } else {
+      file = e.target.files?.[0];
+    }
     if (!file) return;
+
+    if (file.size > 150 * 1024 * 1024) {
+      setError('Filen er for stor (max 150MB). For at undgå at browseren crasher, er denne grænse indført.');
+      return;
+    }
 
     setError(null);
     setFileName(file.name);
@@ -89,7 +107,8 @@ export default function GCodeTab() {
         return;
       }
 
-      const parsedLayers = await parseGCode(file, setProgress);
+      const parseResult = await parseGCode(file, setProgress);
+      const parsedLayers = parseResult.layers;
       setLayers(parsedLayers);
       setVisibleLayersCount(100);
       
@@ -102,6 +121,7 @@ export default function GCodeTab() {
       let totalFilament = 0;
       let totalPrintTime = 0;
       let totalTravelTime = 0;
+      const featureTimes: Record<string, number> = {};
       
       const layerHeights: number[] = [];
 
@@ -110,6 +130,12 @@ export default function GCodeTab() {
         totalPrintTime += l.printTime;
         totalTravelTime += l.travelTime;
         totalFilament += l.filamentUsed;
+        
+        if (l.featureTimes) {
+          Object.entries(l.featureTimes).forEach(([feature, time]) => {
+            featureTimes[feature] = (featureTimes[feature] || 0) + time;
+          });
+        }
         
         if (l.maxSpeed > maxSpeed) maxSpeed = l.maxSpeed;
         totalSpeed += l.avgSpeed;
@@ -141,7 +167,9 @@ export default function GCodeTab() {
         totalFilament,
         totalPrintTime,
         totalTravelTime,
-        layerHeightConsistency
+        layerHeightConsistency,
+        featureTimes,
+        boundingBox: parseResult.boundingBox
       });
     } catch (err) {
       console.error("Error parsing GCODE:", err);
@@ -156,7 +184,7 @@ export default function GCodeTab() {
     
     setIsOptimizing(true);
     try {
-      const optimizedBlob = await optimizeGCode(originalFile, layers);
+      const optimizedBlob = await optimizeGCode(originalFile, layers, { flowMultiplier });
       const url = URL.createObjectURL(optimizedBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -171,6 +199,30 @@ export default function GCodeTab() {
     } finally {
       setIsOptimizing(false);
     }
+  };
+
+  const handleReset = () => {
+    setLayers([]);
+    setStats({
+      totalTime: 0,
+      maxSpeed: 0,
+      avgSpeed: 0,
+      layerCount: 0,
+      maxFlow: 0,
+      coolingWarnings: 0,
+      cornerWarnings: 0,
+      totalFilament: 0,
+      totalPrintTime: 0,
+      totalTravelTime: 0,
+      layerHeightConsistency: 0,
+      featureTimes: {}
+    });
+    setFileName('');
+    setOriginalFile(null);
+    setError(null);
+    setProgress(0);
+    setCompareStats(null);
+    setCompareFileName('');
   };
 
   const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,6 +245,28 @@ export default function GCodeTab() {
       } catch (err) {
         console.error("Error parsing JSON:", err);
         setError("Kunne ikke læse JSON filen. Den er muligvis korrupt.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCompareJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (data.stats) {
+          setCompareStats(data.stats);
+          setCompareFileName(file.name);
+        } else {
+          setError("Ugyldig analyse-fil til sammenligning.");
+        }
+      } catch (err) {
+        console.error("Error parsing JSON:", err);
+        setError("Kunne ikke læse sammenlignings-JSON filen.");
       }
     };
     reader.readAsText(file);
@@ -293,7 +367,15 @@ export default function GCodeTab() {
           </p>
           
           <div className="flex flex-col gap-3">
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-zinc-700 border-dashed rounded-xl cursor-pointer bg-zinc-800/50 hover:bg-zinc-800 transition-colors">
+            <label 
+              className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+                isDragging ? 'border-emerald-500 bg-emerald-500/10' :
+                'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileUpload(e); }}
+            >
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <Upload className="w-8 h-8 mb-3 text-zinc-400" />
                 <p className="mb-2 text-sm text-zinc-400"><span className="font-semibold">Upload .gcode</span></p>
@@ -301,13 +383,25 @@ export default function GCodeTab() {
               <input type="file" accept=".gcode" className="hidden" onChange={handleFileUpload} disabled={isProcessing} />
             </label>
 
-            <label className="flex items-center justify-center w-full py-3 border border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800/30 hover:bg-zinc-800 transition-colors">
-              <div className="flex items-center gap-2 text-zinc-400">
-                <FileJson className="w-4 h-4" />
-                <span className="text-xs font-medium">Eller indlæs gemt analyse (.json)</span>
-              </div>
-              <input type="file" accept=".json" className="hidden" onChange={handleJsonUpload} disabled={isProcessing} />
-            </label>
+            <div className="flex gap-3">
+              <label className="flex-1 flex items-center justify-center py-3 border border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800/30 hover:bg-zinc-800 transition-colors">
+                <div className="flex items-center gap-2 text-zinc-400">
+                  <FileJson className="w-4 h-4" />
+                  <span className="text-xs font-medium">Indlæs analyse (.json)</span>
+                </div>
+                <input type="file" accept=".json" className="hidden" onChange={handleJsonUpload} disabled={isProcessing} />
+              </label>
+              
+              {layers.length > 0 && (
+                <label className="flex-1 flex items-center justify-center py-3 border border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800/30 hover:bg-zinc-800 transition-colors">
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <FileJson className="w-4 h-4" />
+                    <span className="text-xs font-medium">Sammenlign (.json)</span>
+                  </div>
+                  <input type="file" accept=".json" className="hidden" onChange={handleCompareJsonUpload} disabled={isProcessing} />
+                </label>
+              )}
+            </div>
           </div>
 
           {error && (
@@ -347,6 +441,14 @@ export default function GCodeTab() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <button 
+                  onClick={handleReset}
+                  className="flex items-center gap-2 bg-red-950/30 hover:bg-red-900/50 text-red-400 py-1.5 px-3 rounded-lg text-sm font-medium transition-colors border border-red-900/50"
+                  title="Nulstil og fjern fil"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Nulstil
+                </button>
+                <button 
                   onClick={exportToJson}
                   className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-1.5 px-3 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
                   title="Download analyse som JSON"
@@ -356,31 +458,51 @@ export default function GCodeTab() {
                 </button>
                 
                 {originalFile && (
-                  <button 
-                    onClick={handleOptimizeAndDownload}
-                    disabled={isOptimizing}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-3 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50"
-                  >
-                    {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                    Optimér & Gem GCODE
-                  </button>
+                  <div className="flex items-center gap-2 bg-zinc-800/50 border border-zinc-700 rounded-lg p-1">
+                    <div className="flex items-center gap-2 px-2" title="Juster flow (extrusion multiplier) for hele printet.">
+                      <span className="text-xs text-zinc-400 font-medium">Flow:</span>
+                      <input 
+                        type="number" 
+                        min="50" 
+                        max="150" 
+                        value={flowMultiplier}
+                        onChange={(e) => setFlowMultiplier(Number(e.target.value))}
+                        className="w-14 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-xs text-zinc-200 text-center focus:outline-none focus:border-emerald-500"
+                      />
+                      <span className="text-xs text-zinc-500">%</span>
+                    </div>
+                    <div className="w-px h-4 bg-zinc-700"></div>
+                    <button 
+                      onClick={handleOptimizeAndDownload}
+                      disabled={isOptimizing}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-1 px-3 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                    >
+                      {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Optimér & Gem
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Den samlede tid det tager at printe filen, inklusiv opvarmning og rejsebevægelser.">
                 <div className="flex items-center gap-3 text-zinc-400 mb-2">
                   <Clock className="w-5 h-5" />
                   <span className="text-sm font-medium">Estimeret Tid</span>
                 </div>
                 <div className="text-3xl font-mono text-zinc-100">{formatTime(stats.totalTime)}</div>
+                {compareStats && (
+                  <div className={`text-sm font-medium mt-1 ${stats.totalTime < compareStats.totalTime ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.totalTime < compareStats.totalTime ? '-' : '+'}{formatTime(Math.abs(stats.totalTime - compareStats.totalTime))} vs {compareFileName}
+                  </div>
+                )}
                 <div className="text-xs text-zinc-500 mt-2">
                   Print: {formatTime(stats.totalPrintTime)} | Rejse: {formatTime(stats.totalTravelTime)}
                 </div>
               </div>
               
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Mængden af filament der bruges til printet, beregnet ud fra ekstruderingslængde og filamentdiameter (1.75mm).">
                 <div className="flex items-center gap-3 text-zinc-400 mb-2">
                   <Box className="w-5 h-5" />
                   <span className="text-sm font-medium">Filament Forbrug</span>
@@ -388,6 +510,11 @@ export default function GCodeTab() {
                 <div className="text-3xl font-mono text-zinc-100">
                   {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-zinc-500">g</span>
                 </div>
+                {compareStats && (
+                  <div className={`text-sm font-medium mt-1 ${stats.totalFilament < compareStats.totalFilament ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.totalFilament < compareStats.totalFilament ? '-' : '+'}{Math.abs((stats.totalFilament - compareStats.totalFilament) * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)}g vs {compareFileName}
+                  </div>
+                )}
                 <div className="text-sm font-medium text-emerald-400 mt-1">
                   Pris: {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124 * 0.5).toFixed(2)} kr. <span className="text-xs text-zinc-500 font-normal">(0,50 kr/g)</span>
                 </div>
@@ -396,7 +523,7 @@ export default function GCodeTab() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Hvor konsistent laghøjden er gennem hele printet. En variabel laghøjde kan indikere brug af adaptiv laghøjde i sliceren.">
                 <div className="flex items-center gap-3 text-zinc-400 mb-2">
                   <Ruler className="w-5 h-5" />
                   <span className="text-sm font-medium">Lag Konsistens</span>
@@ -409,7 +536,7 @@ export default function GCodeTab() {
                 </div>
               </div>
               
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Procentdelen af den samlede tid, der bruges på at ekstrudere filament frem for at flytte printhovedet (rejse). Højere er bedre.">
                 <div className="flex items-center gap-3 text-zinc-400 mb-2">
                   <Move className="w-5 h-5" />
                   <span className="text-sm font-medium">Rejse Optimeret</span>
@@ -417,23 +544,33 @@ export default function GCodeTab() {
                 <div className="text-3xl font-mono text-zinc-100">
                   {((stats.totalPrintTime / stats.totalTime) * 100).toFixed(0)}<span className="text-lg text-zinc-500">%</span>
                 </div>
+                {compareStats && (
+                  <div className={`text-sm font-medium mt-1 ${((stats.totalPrintTime / stats.totalTime) * 100) > ((compareStats.totalPrintTime / compareStats.totalTime) * 100) ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {((stats.totalPrintTime / stats.totalTime) * 100) > ((compareStats.totalPrintTime / compareStats.totalTime) * 100) ? '+' : ''}{(((stats.totalPrintTime / stats.totalTime) * 100) - ((compareStats.totalPrintTime / compareStats.totalTime) * 100)).toFixed(1)}% vs {compareFileName}
+                  </div>
+                )}
                 <div className="text-xs text-zinc-500 mt-2">
                   Tid brugt på at printe vs rejse
                 </div>
               </div>
 
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Den gennemsnitlige hastighed for alle bevægelser.">
                 <div className="flex items-center gap-3 text-zinc-400 mb-2">
                   <Zap className="w-5 h-5" />
                   <span className="text-sm font-medium">Gns. Hastighed</span>
                 </div>
                 <div className="text-3xl font-mono text-zinc-100">{stats.avgSpeed.toFixed(0)} <span className="text-lg text-zinc-500">mm/s</span></div>
+                {compareStats && (
+                  <div className={`text-sm font-medium mt-1 ${stats.avgSpeed > compareStats.avgSpeed ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.avgSpeed > compareStats.avgSpeed ? '+' : ''}{(stats.avgSpeed - compareStats.avgSpeed).toFixed(0)} mm/s vs {compareFileName}
+                  </div>
+                )}
                 <div className="text-xs text-zinc-500 mt-2">
                   Maks: {stats.maxSpeed.toFixed(0)} mm/s
                 </div>
               </div>
 
-              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.coolingWarnings > 0 ? 'bg-amber-950/20 border-amber-900/50' : 'bg-zinc-900 border-zinc-800'}`}>
+              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.coolingWarnings > 0 ? 'bg-amber-950/20 border-amber-900/50' : 'bg-zinc-900 border-zinc-800'}`} title="Antal lag, der tager meget kort tid at printe, hvilket kan føre til overophedning og dårlig kvalitet, hvis kølingen ikke er tilstrækkelig.">
                 <div className={`flex items-center gap-3 mb-2 ${stats.coolingWarnings > 0 ? 'text-amber-500' : 'text-zinc-400'}`}>
                   <Wind className="w-5 h-5" />
                   <span className="text-sm font-medium">Køle-advarsler</span>
@@ -443,7 +580,7 @@ export default function GCodeTab() {
                 </div>
               </div>
 
-              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.cornerWarnings > 0 ? 'bg-red-950/20 border-red-900/50' : 'bg-zinc-900 border-zinc-800'}`}>
+              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.cornerWarnings > 0 ? 'bg-red-950/20 border-red-900/50' : 'bg-zinc-900 border-zinc-800'}`} title="Antal lag med mange skarpe retningsskift ved høj hastighed, hvilket kan give 'ghosting' eller 'ringing' på printets overflade.">
                 <div className={`flex items-center gap-3 mb-2 ${stats.cornerWarnings > 0 ? 'text-red-500' : 'text-zinc-400'}`}>
                   <CornerUpRight className="w-5 h-5" />
                   <span className="text-sm font-medium">Hurtige Hjørner</span>
@@ -452,75 +589,137 @@ export default function GCodeTab() {
                   {stats.cornerWarnings} <span className="text-lg opacity-50">lag</span>
                 </div>
               </div>
+
+              {stats.boundingBox && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
+                  <div className="flex items-center gap-3 text-zinc-400 mb-2">
+                    <Box className="w-5 h-5" />
+                    <span className="text-sm font-medium">Dimensioner</span>
+                  </div>
+                  <div className="text-xl font-mono text-zinc-100">
+                    {(stats.boundingBox.maxX - stats.boundingBox.minX).toFixed(1)} <span className="text-sm text-zinc-500">x</span> {(stats.boundingBox.maxY - stats.boundingBox.minY).toFixed(1)} <span className="text-sm text-zinc-500">x</span> {(stats.boundingBox.maxZ - stats.boundingBox.minZ).toFixed(1)} <span className="text-sm text-zinc-500">mm</span>
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-2">
+                    Bredde x Dybde x Højde
+                  </div>
+                </div>
+              )}
             </div>
+
+            {Object.keys(stats.featureTimes).length > 0 && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+                <div className="flex items-center gap-3 text-zinc-400 mb-4">
+                  <Clock className="w-5 h-5" />
+                  <span className="text-sm font-medium">Tidsfordeling per Funktion</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {Object.entries(stats.featureTimes)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([feature, time]) => (
+                      <div key={feature} className="flex flex-col">
+                        <span className="text-xs text-zinc-500 mb-1">{feature}</span>
+                        <span className="text-lg font-mono text-zinc-100">{formatTime(time)}</span>
+                        <span className="text-xs text-zinc-600">{((time / stats.totalTime) * 100).toFixed(1)}%</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Charts */}
       {layers.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[400px]">
-          {/* Layer Time Chart */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-            <h3 className="text-zinc-100 font-medium mb-1">Lag-tid & Køling</h3>
-            <p className="text-xs text-zinc-500 mb-6">Tid brugt per lag (grøn) vs. blæserhastighed (blå). Korte lag kræver høj køling.</p>
-            <div className="flex-1 w-full min-h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={layers} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="layerNum" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <YAxis yAxisId="left" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} domain={[0, 255]} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
-                    labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                    formatter={(value: number, name: string, props: any) => {
-                      const { payload } = props;
-                      if (name === 'time') {
-                        const label = `${value.toFixed(1)}s`;
-                        return payload.coolingWarning 
-                          ? [`${label} (⚠️ Køle-advarsel)`, 'Lag-tid'] 
-                          : [label, 'Lag-tid'];
-                      }
-                      if (name === 'avgFanSpeed') return [`${Math.round((value/255)*100)}%`, 'Blæser'];
-                      return [value, name];
-                    }}
-                    labelFormatter={(label) => `Lag ${label}`}
-                  />
-                  <ReferenceLine yAxisId="left" y={15} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Kritisk kort tid', fill: '#f59e0b', fontSize: 10 }} />
-                  <Line yAxisId="left" type="monotone" dataKey="time" stroke="#10b981" strokeWidth={2} dot={<CustomDot dataKey="time" />} activeDot={{ r: 6 }} />
-                  <Line yAxisId="right" type="stepAfter" dataKey="avgFanSpeed" stroke="#3b82f6" strokeWidth={2} dot={false} opacity={0.5} />
-                </LineChart>
-              </ResponsiveContainer>
+        <div className="flex flex-col gap-6 flex-1">
+          <div className="flex justify-end mb-2">
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+              <button
+                onClick={() => setXAxisMode('layer')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${xAxisMode === 'layer' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                Lag Nummer
+              </button>
+              <button
+                onClick={() => setXAxisMode('z')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${xAxisMode === 'z' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                Z-Højde (mm)
+              </button>
             </div>
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[400px]">
+            {/* Layer Time Chart */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
+              <h3 className="text-zinc-100 font-medium mb-1">Lag-tid & Køling</h3>
+              <p className="text-xs text-zinc-500 mb-6">Tid brugt per lag (grøn) vs. blæserhastighed (blå). Korte lag kræver høj køling.</p>
+              <div className="flex-1 w-full min-h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                    <XAxis 
+                      dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                      stroke="#52525b" 
+                      tick={{ fill: '#71717a', fontSize: 12 }} 
+                      tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                    />
+                    <YAxis yAxisId="left" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} domain={[0, 255]} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
+                      labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const { payload } = props;
+                        if (name === 'time') {
+                          const label = `${value.toFixed(1)}s`;
+                          return payload.coolingWarning 
+                            ? [`${label} (⚠️ Køle-advarsel)`, 'Lag-tid'] 
+                            : [label, 'Lag-tid'];
+                        }
+                        if (name === 'avgFanSpeed') return [`${Math.round((value/255)*100)}%`, 'Blæser'];
+                        return [value, name];
+                      }}
+                      labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
+                    />
+                    <ReferenceLine yAxisId="left" y={15} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Kritisk kort tid', fill: '#f59e0b', fontSize: 10 }} />
+                    <Line yAxisId="left" type="monotone" dataKey="time" stroke="#10b981" strokeWidth={2} dot={<CustomDot dataKey="time" />} activeDot={{ r: 6 }} />
+                    <Line yAxisId="right" type="stepAfter" dataKey="avgFanSpeed" stroke="#3b82f6" strokeWidth={2} dot={false} opacity={0.5} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
-          {/* Speed & Corners Chart */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-            <h3 className="text-zinc-100 font-medium mb-1">Hastighed & Hjørner</h3>
-            <p className="text-xs text-zinc-500 mb-6">Gns. hastighed (lilla) og antal skarpe hjørner taget ved høj fart (rød).</p>
-            <div className="flex-1 w-full min-h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={layers} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="layerNum" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <YAxis yAxisId="left" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
-                    labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                    formatter={(value: number, name: string, props: any) => {
-                      const { payload } = props;
-                      if (name === 'avgSpeed') return [`${value.toFixed(0)} mm/s`, 'Gns. Hastighed'];
-                      if (name === 'sharpCornerHighSpeedCount') {
-                        return payload.sharpCornerHighSpeedCount > 10
-                          ? [`${value} (⚠️ Hurtige hjørner)`, 'Hurtige Hjørner']
-                          : [value, 'Hurtige Hjørner'];
-                      }
-                      return [value, name];
-                    }}
-                    labelFormatter={(label) => `Lag ${label}`}
-                  />
+            {/* Speed & Corners Chart */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
+              <h3 className="text-zinc-100 font-medium mb-1">Hastighed & Hjørner</h3>
+              <p className="text-xs text-zinc-500 mb-6">Gns. hastighed (lilla) og antal skarpe hjørner taget ved høj fart (rød).</p>
+              <div className="flex-1 w-full min-h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                    <XAxis 
+                      dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                      stroke="#52525b" 
+                      tick={{ fill: '#71717a', fontSize: 12 }} 
+                      tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                    />
+                    <YAxis yAxisId="left" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
+                      labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const { payload } = props;
+                        if (name === 'avgSpeed') return [`${value.toFixed(0)} mm/s`, 'Gns. Hastighed'];
+                        if (name === 'sharpCornerHighSpeedCount') {
+                          return payload.sharpCornerHighSpeedCount > 10
+                            ? [`${value} (⚠️ Hurtige hjørner)`, 'Hurtige Hjørner']
+                            : [value, 'Hurtige Hjørner'];
+                        }
+                        return [value, name];
+                      }}
+                      labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
+                    />
                   <Area yAxisId="left" type="monotone" dataKey="avgSpeed" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} />
                   <Area yAxisId="right" type="monotone" dataKey="sharpCornerHighSpeedCount" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} />
                   <Line yAxisId="right" type="monotone" dataKey="sharpCornerHighSpeedCount" stroke="transparent" dot={<CustomDot dataKey="sharpCornerHighSpeedCount" />} activeDot={false} />
@@ -535,15 +734,20 @@ export default function GCodeTab() {
             <p className="text-xs text-zinc-500 mb-6">Gennemsnitlig printhastighed per lag. Markering ved kritisk lav hastighed (40 mm/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={layers} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <LineChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="layerNum" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                  <XAxis 
+                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                    stroke="#52525b" 
+                    tick={{ fill: '#71717a', fontSize: 12 }} 
+                    tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                  />
                   <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
                     formatter={(value: number) => [`${value.toFixed(0)} mm/s`, 'Gns. Hastighed']}
-                    labelFormatter={(label) => `Lag ${label}`}
+                    labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                   />
                   <ReferenceLine y={40} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Kritisk grænse (40 mm/s)', fill: '#ef4444', fontSize: 10 }} />
                   <Line type="monotone" dataKey="avgSpeed" stroke="#0ea5e9" strokeWidth={2} dot={<CustomDot dataKey="avgSpeed" />} activeDot={{ r: 6 }} />
@@ -558,9 +762,14 @@ export default function GCodeTab() {
             <p className="text-xs text-zinc-500 mb-6">Sammenligning af tid brugt på ekstrudering (grøn) vs. rejsebevægelser (orange).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={layers} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <ComposedChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="layerNum" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                  <XAxis 
+                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                    stroke="#52525b" 
+                    tick={{ fill: '#71717a', fontSize: 12 }} 
+                    tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                  />
                   <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
@@ -569,7 +778,7 @@ export default function GCodeTab() {
                       `${value.toFixed(1)}s`, 
                       name === 'printTime' ? 'Print Tid' : 'Rejse Tid'
                     ]}
-                    labelFormatter={(label) => `Lag ${label}`}
+                    labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                   />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
                   <Bar dataKey="printTime" name="Print Tid" stackId="a" fill="#10b981" />
@@ -585,18 +794,24 @@ export default function GCodeTab() {
             <p className="text-xs text-zinc-500 mb-6">Volumetrisk flow per lag. Markering ved høj flow (15 mm³/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={layers} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <AreaChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="layerNum" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
+                  <XAxis 
+                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                    stroke="#52525b" 
+                    tick={{ fill: '#71717a', fontSize: 12 }} 
+                    tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                  />
                   <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
                     formatter={(value: number) => [`${value.toFixed(2)} mm³/s`, 'Flow']}
-                    labelFormatter={(label) => `Lag ${label}`}
+                    labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                   />
                   <ReferenceLine y={15} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Høj flow (15 mm³/s)', fill: '#f59e0b', fontSize: 10 }} />
                   <Area type="monotone" dataKey="flow" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.1} strokeWidth={2} dot={<CustomDot dataKey="flow" />} activeDot={{ r: 6 }} />
+                  <Brush dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} height={30} stroke="#52525b" fill="#18181b" tickFormatter={(val) => xAxisMode === 'z' ? Number(val).toFixed(1) : val} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
