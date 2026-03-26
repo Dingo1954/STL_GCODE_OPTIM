@@ -50,32 +50,82 @@ export async function parseGCode(
   let layerSharpCornerHighSpeedCount = 0;
   
   const chunkSize = 50000;
+
+  const pushLayer = () => {
+    const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : currentFanSpeed;
+    const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
+    
+    const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || 
+                           (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
+
+    layers.push({
+      layerNum: ++layerNum,
+      z: highestZ,
+      layerHeight: currentLayerHeight,
+      time: layerTime,
+      printTime: layerPrintTime,
+      travelTime: layerTravelTime,
+      filamentUsed: layerFilament,
+      maxSpeed: layerMaxSpeed,
+      avgSpeed,
+      flow: layerMaxFlow,
+      avgFanSpeed,
+      sharpCornerHighSpeedCount: layerSharpCornerHighSpeedCount,
+      coolingWarning
+    });
+
+    layerTime = 0;
+    layerPrintTime = 0;
+    layerTravelTime = 0;
+    layerFilament = 0;
+    layerMaxSpeed = 0;
+    layerPrintSpeedTotal = 0;
+    layerPrintMoveCount = 0;
+    layerMaxFlow = 0;
+    layerTotalFanSpeed = 0;
+    layerFanSpeedSamples = 0;
+    layerSharpCornerHighSpeedCount = 0;
+  };
   
   for (let i = 0; i < lines.length; i += chunkSize) {
     const chunk = lines.slice(i, i + chunkSize);
     
     for (const line of chunk) {
-      if (line.startsWith('M83')) {
+      const trimmedLine = line.trim();
+      
+      // Slicer comment layer detection (more reliable)
+      if (trimmedLine.startsWith(';') && (
+          trimmedLine.includes('LAYER:') || 
+          trimmedLine.includes('LAYER_CHANGE') || 
+          trimmedLine.toLowerCase().includes('layer ')
+      )) {
+        if (layerTime > 0) {
+          pushLayer();
+        }
+        continue;
+      }
+
+      if (trimmedLine.startsWith('M83')) {
         isRelativeE = true;
         continue;
-      } else if (line.startsWith('M82')) {
+      } else if (trimmedLine.startsWith('M82')) {
         isRelativeE = false;
         continue;
       }
 
-      // Fan speed detection (M106 S<speed>, M107 is off)
-      if (line.startsWith('M106')) {
-        const match = line.match(/S(\d+)/);
+      // Fan speed detection
+      if (trimmedLine.startsWith('M106')) {
+        const match = trimmedLine.match(/S(\d+)/);
         if (match) currentFanSpeed = parseInt(match[1], 10);
         continue;
-      } else if (line.startsWith('M107')) {
+      } else if (trimmedLine.startsWith('M107')) {
         currentFanSpeed = 0;
         continue;
       }
 
-      if (!line.startsWith('G0') && !line.startsWith('G1')) continue;
+      if (!trimmedLine.startsWith('G0') && !trimmedLine.startsWith('G1')) continue;
       
-      const parts = line.split(' ');
+      const parts = trimmedLine.split(' ');
       let newX = currentX, newY = currentY, newZ = currentZ, newF = currentF;
       let parsedE: number | null = null;
       
@@ -99,47 +149,15 @@ export async function parseGCode(
         }
       }
 
-      // Layer change detection (Z increases beyond highest seen)
-      if (newZ > highestZ + 0.001) {
-        if (layerNum > 0 || layerTime > 0) {
-          const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : currentFanSpeed;
-          const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
-          
-          const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || 
-                                 (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
-
-          layers.push({
-            layerNum,
-            z: highestZ,
-            layerHeight: currentLayerHeight,
-            time: layerTime,
-            printTime: layerPrintTime,
-            travelTime: layerTravelTime,
-            filamentUsed: layerFilament,
-            maxSpeed: layerMaxSpeed,
-            avgSpeed,
-            flow: layerMaxFlow,
-            avgFanSpeed,
-            sharpCornerHighSpeedCount: layerSharpCornerHighSpeedCount,
-            coolingWarning
-          });
+      // Layer change detection (Z increases significantly or we haven't seen this Z before)
+      // We only count it as a layer change if there was extrusion on the previous Z
+      if (newZ > highestZ + 0.001 && de > 0) {
+        if (layerTime > 0) {
+          pushLayer();
         }
         
         currentLayerHeight = highestZ === -999 ? newZ : newZ - highestZ;
         highestZ = newZ;
-        layerNum++;
-        
-        layerTime = 0;
-        layerPrintTime = 0;
-        layerTravelTime = 0;
-        layerFilament = 0;
-        layerMaxSpeed = 0;
-        layerPrintSpeedTotal = 0;
-        layerPrintMoveCount = 0;
-        layerMaxFlow = 0;
-        layerTotalFanSpeed = 0;
-        layerFanSpeedSamples = 0;
-        layerSharpCornerHighSpeedCount = 0;
       }
       
       const dx = newX - currentX;
@@ -165,7 +183,7 @@ export async function parseGCode(
           layerPrintSpeedTotal += speed;
           layerPrintMoveCount++;
           
-          // Corner detection (only on XY plane, ignoring Z hops)
+          // Corner detection
           if (dx !== 0 || dy !== 0) {
             const len = Math.sqrt(dx*dx + dy*dy);
             const nx = dx / len;
@@ -183,14 +201,12 @@ export async function parseGCode(
             prevSpeed = speed;
           }
           
-          // Approximate flow rate: Volume / Time
           if (time > 0) {
              const volume = Math.PI * Math.pow(1.75/2, 2) * de;
              const flow = volume / time;
              if (flow > layerMaxFlow) layerMaxFlow = flow;
           }
         } else {
-          // Travel move or retraction
           layerTravelTime += time;
           prevDx = 0;
           prevDy = 0;
@@ -204,33 +220,13 @@ export async function parseGCode(
       currentF = newF;
     }
     
-    // Yield to main thread
     await new Promise(r => setTimeout(r, 0));
     onProgress(Math.min(100, Math.round((i / lines.length) * 100)));
   }
   
   // push last layer
   if (layerTime > 0) {
-     const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : currentFanSpeed;
-     const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
-     const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || 
-                            (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
-
-     layers.push({
-        layerNum,
-        z: highestZ,
-        layerHeight: currentLayerHeight,
-        time: layerTime,
-        printTime: layerPrintTime,
-        travelTime: layerTravelTime,
-        filamentUsed: layerFilament,
-        maxSpeed: layerMaxSpeed,
-        avgSpeed,
-        flow: layerMaxFlow,
-        avgFanSpeed,
-        sharpCornerHighSpeedCount: layerSharpCornerHighSpeedCount,
-        coolingWarning
-      });
+     pushLayer();
   }
   
   return layers;
@@ -338,4 +334,76 @@ export async function parseGCodePath(
   }
   
   return layers;
+}
+
+export async function optimizeGCode(file: File, layerStats: LayerStat[]): Promise<Blob> {
+  const text = await file.text();
+  const lines = text.split('\n');
+  const optimizedLines: string[] = [];
+  
+  let highestZ = -999;
+  let layerNum = 0;
+  let isSpeedReduced = false;
+  let optimizationsCount = 0;
+  
+  optimizedLines.push("; ===============================================");
+  optimizedLines.push("; --- OPTIMERET AF 3D PRINT OPTIMERER ---");
+  optimizedLines.push("; Dato: " + new Date().toLocaleString());
+  optimizedLines.push("; ===============================================");
+
+  const applyLayerOptimizations = (num: number, output: string[]) => {
+    const stats = layerStats.find(s => s.layerNum === num);
+    if (stats) {
+      if (stats.coolingWarning) {
+        output.push("M106 S255 ; >>> OPTIMERET: Øget køling pga. kort lagtid (Lag " + num + ")");
+        optimizationsCount++;
+      }
+      if (stats.sharpCornerHighSpeedCount > 10) {
+        output.push("M220 S80 ; >>> OPTIMERET: Reduceret hastighed pga. skarpe hjørner (Lag " + num + ")");
+        isSpeedReduced = true;
+        optimizationsCount++;
+      } else if (isSpeedReduced) {
+        output.push("M220 S100 ; >>> OPTIMERET: Hastighed nulstillet (Lag " + num + ")");
+        isSpeedReduced = false;
+      }
+    }
+  };
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    // Detect layer change via comment (preferred)
+    if (trimmed.startsWith(';') && (
+      trimmed.includes('LAYER:') || 
+      trimmed.includes('LAYER_CHANGE') || 
+      trimmed.toLowerCase().includes('layer ')
+    )) {
+      layerNum++;
+      applyLayerOptimizations(layerNum, optimizedLines);
+    } 
+    // Detect layer change via Z height (fallback)
+    else if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
+      const zMatch = trimmed.match(/Z([\d.]+)/);
+      const eMatch = trimmed.match(/E([\d.-]+)/);
+      
+      if (zMatch && eMatch && parseFloat(eMatch[1]) > 0) {
+        const newZ = parseFloat(zMatch[1]);
+        if (newZ > highestZ + 0.001) {
+          highestZ = newZ;
+          layerNum++;
+          applyLayerOptimizations(layerNum, optimizedLines);
+        }
+      }
+    }
+    
+    optimizedLines.push(line);
+  }
+
+  if (optimizationsCount === 0) {
+    optimizedLines.push("; INFO: Ingen kritiske problemer fundet. Ingen ændringer foretaget.");
+  } else {
+    optimizedLines.push("; INFO: " + optimizationsCount + " optimeringer blev indsat i filen.");
+  }
+  
+  return new Blob([optimizedLines.join('\n')], { type: 'text/plain' });
 }

@@ -6,10 +6,11 @@
 import React, { useState } from 'react';
 import STLTab from './components/STLTab';
 import GCodeTab from './components/GCodeTab';
-import { Box, FileCode2, Settings } from 'lucide-react';
+import GuideTab from './components/GuideTab';
+import { Box, FileCode2, Settings, BookOpen } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'stl' | 'gcode'>('stl');
+  const [activeTab, setActiveTab] = useState<'stl' | 'gcode' | 'guide'>('stl');
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-sans selection:bg-emerald-500/30">
@@ -20,7 +21,7 @@ export default function App() {
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
               <Settings className="w-5 h-5 text-emerald-500" />
             </div>
-            <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">BambuLab Optimerer</h1>
+            <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">3D Print Optimerer</h1>
           </div>
           
           <div className="flex gap-2 p-1 bg-zinc-900 rounded-lg border border-zinc-800">
@@ -46,13 +47,26 @@ export default function App() {
               <FileCode2 className="w-4 h-4" />
               GCODE Analysator
             </button>
+            <button
+              onClick={() => setActiveTab('guide')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'guide' 
+                  ? 'bg-zinc-800 text-zinc-100 shadow-sm' 
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              Vejledning
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8 h-[calc(100vh-4rem)]">
-        {activeTab === 'stl' ? <STLTab /> : <GCodeTab />}
+      <main className="max-w-7xl mx-auto px-6 py-8 h-[calc(100vh-4rem)] overflow-y-auto">
+        {activeTab === 'stl' && <STLTab />}
+        {activeTab === 'gcode' && <GCodeTab />}
+        {activeTab === 'guide' && <GuideTab />}
       </main>
     </div>
   );

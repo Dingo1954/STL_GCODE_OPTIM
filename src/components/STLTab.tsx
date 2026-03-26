@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stage } from '@react-three/drei';
+import { OrbitControls, Stage, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff } from 'lucide-react';
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff, Save, Maximize2, Box as BoxIcon, FileCode2 } from 'lucide-react';
 import { parseGCodePath, GCodePathLayer } from '../utils/gcodeParser';
 
 export default function STLTab() {
@@ -12,6 +13,7 @@ export default function STLTab() {
   const [dimensions, setDimensions] = useState<{x: number, y: number, z: number} | null>(null);
   const [wallCount, setWallCount] = useState<number>(2);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'reading' | 'parsing' | 'success' | 'error'>('idle');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [optimizationMessage, setOptimizationMessage] = useState<string | null>(null);
@@ -21,7 +23,61 @@ export default function STLTab() {
   const [showGCode, setShowGCode] = useState<boolean>(true);
   const [currentLayerIndex, setCurrentLayerIndex] = useState<number>(0);
   const [gcodeUploadStatus, setGcodeUploadStatus] = useState<'idle' | 'reading' | 'parsing' | 'success' | 'error'>('idle');
+  const [gcodeFileName, setGcodeFileName] = useState<string>('');
   const [gcodeCenter, setGcodeCenter] = useState<THREE.Vector3>(new THREE.Vector3());
+  const [viewMode, setViewMode] = useState<'solid' | 'wireframe' | 'xray'>('solid');
+  const controlsRef = useRef<any>(null);
+
+  const resetCamera = () => {
+    if (controlsRef.current) {
+      controlsRef.current.reset();
+    }
+  };
+
+  const handleSaveSTL = () => {
+    if (!geometry) return;
+    setIsSaving(true);
+
+    // Use setTimeout to allow UI to update
+    setTimeout(() => {
+      try {
+        const exporter = new STLExporter();
+        
+        // Create a temporary mesh to apply the rotation
+        const tempMesh = new THREE.Mesh(geometry);
+        tempMesh.rotation.set(rotation[0], rotation[1], rotation[2]);
+        tempMesh.updateMatrixWorld();
+        
+        // Export the mesh. STLExporter.parse returns a string or ArrayBuffer
+        // We use binary: true for smaller file size
+        const result = exporter.parse(tempMesh, { binary: true });
+        
+        const blob = new Blob([result], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = url;
+        
+        // Include wall count in filename if it's been changed from default
+        const wallSuffix = wallCount !== 2 ? `_${wallCount}walls` : '';
+        const newFileName = fileName.toLowerCase().endsWith('.stl') 
+          ? fileName.slice(0, -4) + '_optimized' + wallSuffix + '.stl'
+          : fileName + '_optimized' + wallSuffix + '.stl';
+          
+        link.download = newFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setOptimizationMessage("STL fil gemt med succes!");
+      } catch (err) {
+        console.error("Error saving STL:", err);
+        setErrorMessage("Kunne ikke gemme STL filen.");
+      } finally {
+        setIsSaving(false);
+      }
+    }, 100);
+  };
 
   const handleAutoOptimize = () => {
     if (!dimensions) return;
@@ -111,6 +167,14 @@ export default function STLTab() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Infer filename from STL if the uploaded file has a generic name or we want to link them
+    let newGcodeFileName = file.name;
+    if (fileName && (file.name === 'data' || file.name.startsWith('blob'))) {
+       newGcodeFileName = fileName.toLowerCase().endsWith('.stl') 
+          ? fileName.slice(0, -4) + '.gcode'
+          : fileName + '.gcode';
+    }
+    setGcodeFileName(newGcodeFileName);
     setGcodeUploadStatus('parsing');
     
     try {
@@ -309,6 +373,24 @@ export default function STLTab() {
             </div>
 
             <div className="pt-4 border-t border-zinc-800">
+              <button 
+                onClick={handleSaveSTL}
+                disabled={isSaving || !geometry}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-3 px-4 rounded-lg font-bold transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                Gem Optimeret STL
+              </button>
+              <p className="text-[10px] text-zinc-500 mt-2 text-center">
+                Gemmer modellen med den valgte rotation og orientering.
+              </p>
+            </div>
+
+            <div className="pt-4 border-t border-zinc-800">
               <h3 className="text-sm font-medium text-zinc-300 mb-2">GCode Overlay</h3>
               <p className="text-xs text-zinc-500 mb-4">
                 Upload en GCode fil for at visualisere printstien ovenpå din 3D model.
@@ -333,6 +415,25 @@ export default function STLTab() {
                 </label>
               ) : (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between bg-zinc-900 p-2 rounded-lg border border-zinc-800">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileCode2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span className="text-xs font-medium text-zinc-300 truncate" title={gcodeFileName}>
+                        {gcodeFileName}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setGcodeLayers([]);
+                        setGcodeFileName('');
+                        setGcodeUploadStatus('idle');
+                      }}
+                      className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors shrink-0"
+                      title="Fjern GCode"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-zinc-300">Vis GCode sti</span>
                     <button 
@@ -367,43 +468,88 @@ export default function STLTab() {
       </div>
 
       {/* 3D Viewport */}
-      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden relative min-h-[400px]">
+      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden relative min-h-[400px] group">
         {!geometry && (
           <div className="absolute inset-0 flex items-center justify-center text-zinc-600">
             Upload en STL fil for at se den her
           </div>
         )}
         {geometry && (
-          <Canvas camera={{ position: [100, 100, 100], fov: 50 }}>
-            <color attach="background" args={['#18181b']} />
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[10, 10, 5]} intensity={1} />
-            <directionalLight position={[-10, -10, -5]} intensity={0.5} />
-            
-            <Stage environment="city" intensity={0.5}>
-              <mesh geometry={geometry} rotation={rotation}>
-                <meshStandardMaterial color="#F27D26" roughness={0.4} metalness={0.1} />
-              </mesh>
+          <>
+            {/* Viewport Controls Overlay */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 rounded-lg p-1 flex flex-col gap-1">
+                <button 
+                  onClick={() => setViewMode('solid')}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'solid' ? 'bg-emerald-500 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+                  title="Solid visning"
+                >
+                  <BoxIcon className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setViewMode('wireframe')}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'wireframe' ? 'bg-emerald-500 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+                  title="Wireframe visning"
+                >
+                  <Layers className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setViewMode('xray')}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'xray' ? 'bg-emerald-500 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+                  title="X-Ray visning"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              </div>
+              <button 
+                onClick={resetCamera}
+                className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                title="Nulstil kamera"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            <Canvas shadows>
+              <PerspectiveCamera makeDefault position={[100, 100, 100]} fov={50} />
+              <color attach="background" args={['#111113']} />
+              <ambientLight intensity={0.5} />
+              <spotLight position={[50, 50, 50]} angle={0.15} penumbra={1} intensity={1} castShadow />
+              <pointLight position={[-50, -50, -50]} intensity={0.5} />
               
-              {showGCode && gcodeLayers.length > 0 && gcodeLayers[currentLayerIndex] && (
-                <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
-                  <lineSegments>
-                    <bufferGeometry>
-                      <bufferAttribute 
-                        attach="attributes-position" 
-                        count={gcodeLayers[currentLayerIndex].positions.length / 3} 
-                        array={gcodeLayers[currentLayerIndex].positions} 
-                        itemSize={3} 
-                      />
-                    </bufferGeometry>
-                    <lineBasicMaterial color="#10b981" linewidth={2} />
-                  </lineSegments>
-                </group>
-              )}
-            </Stage>
-            <OrbitControls makeDefault />
-            <gridHelper args={[200, 20, '#3f3f46', '#27272a']} position={[0, -0.1, 0]} />
-          </Canvas>
+              <Stage environment="city" intensity={0.5} adjustCamera={false}>
+                <mesh geometry={geometry} rotation={rotation} castShadow receiveShadow>
+                  <meshStandardMaterial 
+                    color="#F27D26" 
+                    roughness={0.4} 
+                    metalness={0.1} 
+                    wireframe={viewMode === 'wireframe'}
+                    transparent={viewMode === 'xray'}
+                    opacity={viewMode === 'xray' ? 0.4 : 1}
+                    side={THREE.DoubleSide}
+                  />
+                </mesh>
+                
+                {showGCode && gcodeLayers.length > 0 && gcodeLayers[currentLayerIndex] && (
+                  <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
+                    <lineSegments>
+                      <bufferGeometry>
+                        <bufferAttribute 
+                          attach="attributes-position" 
+                          count={gcodeLayers[currentLayerIndex].positions.length / 3} 
+                          array={gcodeLayers[currentLayerIndex].positions} 
+                          itemSize={3} 
+                        />
+                      </bufferGeometry>
+                      <lineBasicMaterial color="#10b981" linewidth={2} />
+                    </lineSegments>
+                  </group>
+                )}
+              </Stage>
+              <OrbitControls ref={controlsRef} makeDefault />
+              <gridHelper args={[400, 40, '#27272a', '#18181b']} position={[0, -0.1, 0]} />
+            </Canvas>
+          </>
         )}
       </div>
     </div>
