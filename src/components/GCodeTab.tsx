@@ -28,16 +28,35 @@ export default function GCodeTab() {
   });
   const [fileName, setFileName] = useState<string>('');
   const [visibleLayersCount, setVisibleLayersCount] = useState(100);
+  const [error, setError] = useState<string | null>(null);
+
+  const validateGCodeFile = async (file: File): Promise<boolean> => {
+    // Læs de første 256KB af filen for at validere
+    const slice = file.slice(0, 256 * 1024);
+    const text = await slice.text();
+    
+    // Tjek for almindelige GCODE kommandoer (G0, G1, G2, G3, M104, M109, M140, M190, etc.)
+    const gcodeRegex = /^(G[0-3]|G28|G9[01]|M10[4679]|M140|M190|M8[23])/m;
+    return gcodeRegex.test(text);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setError(null);
     setFileName(file.name);
     setIsProcessing(true);
     setProgress(0);
     
     try {
+      const isValid = await validateGCodeFile(file);
+      if (!isValid) {
+        setError("Den uploadede fil ser ikke ud til at være en gyldig GCODE fil. Filen mangler almindelige GCODE kommandoer.");
+        setIsProcessing(false);
+        return;
+      }
+
       const parsedLayers = await parseGCode(file, setProgress);
       setLayers(parsedLayers);
       setVisibleLayersCount(100);
@@ -92,9 +111,9 @@ export default function GCodeTab() {
         totalTravelTime,
         layerHeightConsistency
       });
-    } catch (error) {
-      console.error("Error parsing GCODE:", error);
-      alert("Kunne ikke læse GCODE filen.");
+    } catch (err) {
+      console.error("Error parsing GCODE:", err);
+      setError("Der opstod en fejl under læsning af GCODE filen.");
     } finally {
       setIsProcessing(false);
     }
@@ -104,6 +123,7 @@ export default function GCodeTab() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setError(null);
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -114,11 +134,11 @@ export default function GCodeTab() {
           setStats(data.stats);
           setVisibleLayersCount(100);
         } else {
-          alert("Ugyldig analyse-fil. Filen mangler layers eller stats.");
+          setError("Ugyldig analyse-fil. Filen mangler layers eller stats.");
         }
       } catch (err) {
         console.error("Error parsing JSON:", err);
-        alert("Kunne ikke læse JSON filen.");
+        setError("Kunne ikke læse JSON filen. Den er muligvis korrupt.");
       }
     };
     reader.readAsText(file);
@@ -171,6 +191,13 @@ export default function GCodeTab() {
               <input type="file" accept=".json" className="hidden" onChange={handleJsonUpload} disabled={isProcessing} />
             </label>
           </div>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-950/30 border border-red-900/50 rounded-lg flex items-start gap-2 text-red-400 text-sm">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
 
           {isProcessing && (
             <div className="mt-4">
