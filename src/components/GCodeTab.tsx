@@ -32,14 +32,43 @@ export default function GCodeTab() {
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
 
-  const validateGCodeFile = async (file: File): Promise<boolean> => {
-    // Læs de første 256KB af filen for at validere
-    const slice = file.slice(0, 256 * 1024);
+  const validateGCodeFile = async (file: File): Promise<{ isValid: boolean; error?: string }> => {
+    // Tjek filendelse først
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.gcode') && !fileName.endsWith('.g') && !fileName.endsWith('.nc')) {
+      return { isValid: false, error: "Filen har ikke en standard G-code endelse (.gcode, .g)." };
+    }
+
+    // Læs den første 1MB af filen for at validere (nogle slicere indsætter store thumbnails i starten)
+    const slice = file.slice(0, 1024 * 1024);
     const text = await slice.text();
     
-    // Tjek for almindelige GCODE kommandoer (G0, G1, G2, G3, M104, M109, M140, M190, etc.)
-    const gcodeRegex = /^(G[0-3]|G28|G9[01]|M10[4679]|M140|M190|M8[23])/m;
-    return gcodeRegex.test(text);
+    // Tjek for grundlæggende G-code struktur (linjer der starter med G eller M efterfulgt af tal)
+    const hasBasicGCode = /^(G\d+|M\d+)\b/m.test(text);
+    if (!hasBasicGCode) {
+      return { isValid: false, error: "Filen mangler grundlæggende G-code kommandoer (G- eller M-koder). Er du sikker på, at det er en G-code fil?" };
+    }
+
+    // Tjek for bevægelse (G0 eller G1)
+    const hasMovement = /^(G0|G1)\b/m.test(text);
+    if (!hasMovement) {
+      return { isValid: false, error: "Filen indeholder ingen bevægelseskommandoer (G0/G1). Dette ligner ikke en valid print-fil." };
+    }
+    
+    // Tjek for temperaturindstillinger (M104, M109, M140, M190)
+    const hasTemperature = /^(M104|M109|M140|M190)\b/m.test(text);
+    
+    // Tjek for ekstrudering (E-værdier på G1 linjer)
+    const hasExtrusion = /^G1.*E[0-9.-]+/m.test(text);
+    
+    if (!hasExtrusion && !hasTemperature) {
+      return { 
+        isValid: false, 
+        error: "Filen mangler både ekstruderings- (E) og temperaturkommandoer (M104/M140). Dette ligner en CNC-fil frem for en 3D-print fil." 
+      };
+    }
+
+    return { isValid: true };
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,9 +82,9 @@ export default function GCodeTab() {
     setProgress(0);
     
     try {
-      const isValid = await validateGCodeFile(file);
-      if (!isValid) {
-        setError("Den uploadede fil ser ikke ud til at være en gyldig GCODE fil. Filen mangler almindelige GCODE kommandoer.");
+      const validation = await validateGCodeFile(file);
+      if (!validation.isValid) {
+        setError(validation.error || "Den uploadede fil ser ikke ud til at være en gyldig GCODE fil.");
         setIsProcessing(false);
         return;
       }
