@@ -4,7 +4,7 @@ import { OrbitControls, Stage, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
-import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff, Save, Maximize2, Box as BoxIcon, FileCode2 } from 'lucide-react';
+import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff, Save, Maximize2, Box as BoxIcon, FileCode2, AlertTriangle } from 'lucide-react';
 import { parseGCodePath, GCodePathLayer } from '../utils/gcodeParser';
 
 export default function STLTab() {
@@ -77,8 +77,9 @@ export default function STLTab() {
 
   useEffect(() => {
     if (geometryRef.current && layerOffsets.length > 0 && currentLayerIndex >= 0) {
-      const count = layerOffsets[currentLayerIndex + 1] / 3;
-      geometryRef.current.setDrawRange(0, count);
+      const start = layerOffsets[currentLayerIndex] / 3;
+      const count = (layerOffsets[currentLayerIndex + 1] - layerOffsets[currentLayerIndex]) / 3;
+      geometryRef.current.setDrawRange(start, count);
     }
   }, [currentLayerIndex, layerOffsets, showGCode]);
 
@@ -231,14 +232,13 @@ export default function STLTab() {
   };
 
   const handleReset = () => {
-    setStlUrl(null);
+    setGeometry(null);
     setFileName('');
     setGcodeLayers([]);
     setGcodeFileName('');
     setGcodeUploadStatus('idle');
     setUploadStatus('idle');
-    setErrorMessage(null);
-    setOriginalFile(null);
+    setErrorMessage('');
     setDimensions(null);
   };
 

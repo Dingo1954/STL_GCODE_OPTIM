@@ -925,6 +925,7 @@ export default function GCodeTab() {
             )}
           </div>
         </div>
+        </div>
       )}
     </div>
   );

@@ -163,12 +163,14 @@ self.onmessage = async (e: MessageEvent) => {
             }
           }
 
-          if (newX < minX) minX = newX;
-          if (newX > maxX) maxX = newX;
-          if (newY < minY) minY = newY;
-          if (newY > maxY) maxY = newY;
-          if (newZ < minZ) minZ = newZ;
-          if (newZ > maxZ) maxZ = newZ;
+          if (de > 0) {
+            if (newX < minX) minX = newX;
+            if (newX > maxX) maxX = newX;
+            if (newY < minY) minY = newY;
+            if (newY > maxY) maxY = newY;
+            if (newZ < minZ) minZ = newZ;
+            if (newZ > maxZ) maxZ = newZ;
+          }
 
           // Layer change detection (Z increases significantly or we haven't seen this Z before)
           // We only count it as a layer change if there was extrusion on the previous Z
