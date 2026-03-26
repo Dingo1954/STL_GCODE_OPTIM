@@ -1,10 +1,17 @@
 export interface LayerStat {
   layerNum: number;
   z: number;
+  layerHeight: number;
   time: number; // in seconds
+  printTime: number; // time spent extruding
+  travelTime: number; // time spent traveling
+  filamentUsed: number; // mm of filament
   maxSpeed: number; // mm/s
   avgSpeed: number; // mm/s
   flow: number; // mm^3/s (approx)
+  avgFanSpeed: number; // 0-255
+  sharpCornerHighSpeedCount: number; // Count of sharp corners taken at high speed
+  coolingWarning: boolean; // True if layer is long/slow but has low cooling, or very short with low cooling
 }
 
 export async function parseGCode(
@@ -18,13 +25,29 @@ export async function parseGCode(
   
   let currentX = 0, currentY = 0, currentZ = 0, currentE = 0;
   let currentF = 3000; // default 50mm/s
+  let currentFanSpeed = 0; // 0-255
+  let isRelativeE = false;
+  
+  // Track previous segment vector for corner detection
+  let prevDx = 0;
+  let prevDy = 0;
+  let prevSpeed = 0;
+  
+  let highestZ = -999;
+  let currentLayerHeight = 0;
   
   let layerTime = 0;
+  let layerPrintTime = 0;
+  let layerTravelTime = 0;
+  let layerFilament = 0;
   let layerMaxSpeed = 0;
-  let layerTotalSpeed = 0;
-  let layerMoveCount = 0;
+  let layerPrintSpeedTotal = 0;
+  let layerPrintMoveCount = 0;
   let layerNum = 0;
   let layerMaxFlow = 0;
+  let layerTotalFanSpeed = 0;
+  let layerFanSpeedSamples = 0;
+  let layerSharpCornerHighSpeedCount = 0;
   
   const chunkSize = 50000;
   
@@ -32,61 +55,145 @@ export async function parseGCode(
     const chunk = lines.slice(i, i + chunkSize);
     
     for (const line of chunk) {
+      if (line.startsWith('M83')) {
+        isRelativeE = true;
+        continue;
+      } else if (line.startsWith('M82')) {
+        isRelativeE = false;
+        continue;
+      }
+
+      // Fan speed detection (M106 S<speed>, M107 is off)
+      if (line.startsWith('M106')) {
+        const match = line.match(/S(\d+)/);
+        if (match) currentFanSpeed = parseInt(match[1], 10);
+        continue;
+      } else if (line.startsWith('M107')) {
+        currentFanSpeed = 0;
+        continue;
+      }
+
       if (!line.startsWith('G0') && !line.startsWith('G1')) continue;
       
       const parts = line.split(' ');
-      let newX = currentX, newY = currentY, newZ = currentZ, newE = currentE, newF = currentF;
+      let newX = currentX, newY = currentY, newZ = currentZ, newF = currentF;
+      let parsedE: number | null = null;
       
       for (const part of parts) {
         if (part.startsWith('X')) newX = parseFloat(part.substring(1));
         if (part.startsWith('Y')) newY = parseFloat(part.substring(1));
         if (part.startsWith('Z')) newZ = parseFloat(part.substring(1));
-        if (part.startsWith('E')) newE = parseFloat(part.substring(1));
+        if (part.startsWith('E')) parsedE = parseFloat(part.substring(1));
         if (part.startsWith('F')) newF = parseFloat(part.substring(1));
       }
       
-      // Layer change detection (Z increases)
-      if (newZ > currentZ + 0.01) {
+      let de = 0;
+      let newE = currentE;
+      if (parsedE !== null) {
+        if (isRelativeE) {
+          de = parsedE;
+          newE = currentE + de;
+        } else {
+          de = parsedE - currentE;
+          newE = parsedE;
+        }
+      }
+
+      // Layer change detection (Z increases beyond highest seen)
+      if (newZ > highestZ + 0.001) {
         if (layerNum > 0 || layerTime > 0) {
+          const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : currentFanSpeed;
+          const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
+          
+          const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || 
+                                 (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
+
           layers.push({
             layerNum,
-            z: currentZ,
+            z: highestZ,
+            layerHeight: currentLayerHeight,
             time: layerTime,
+            printTime: layerPrintTime,
+            travelTime: layerTravelTime,
+            filamentUsed: layerFilament,
             maxSpeed: layerMaxSpeed,
-            avgSpeed: layerMoveCount > 0 ? layerTotalSpeed / layerMoveCount : 0,
-            flow: layerMaxFlow
+            avgSpeed,
+            flow: layerMaxFlow,
+            avgFanSpeed,
+            sharpCornerHighSpeedCount: layerSharpCornerHighSpeedCount,
+            coolingWarning
           });
         }
+        
+        currentLayerHeight = highestZ === -999 ? newZ : newZ - highestZ;
+        highestZ = newZ;
         layerNum++;
+        
         layerTime = 0;
+        layerPrintTime = 0;
+        layerTravelTime = 0;
+        layerFilament = 0;
         layerMaxSpeed = 0;
-        layerTotalSpeed = 0;
-        layerMoveCount = 0;
+        layerPrintSpeedTotal = 0;
+        layerPrintMoveCount = 0;
         layerMaxFlow = 0;
+        layerTotalFanSpeed = 0;
+        layerFanSpeedSamples = 0;
+        layerSharpCornerHighSpeedCount = 0;
       }
       
       const dx = newX - currentX;
       const dy = newY - currentY;
       const dz = newZ - currentZ;
-      const de = newE - currentE;
       
       const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
       const speed = newF / 60; // mm/s
       
-      if (distance > 0) {
-        const time = distance / speed;
+      if (distance > 0 || Math.abs(de) > 0) {
+        const time = distance > 0 ? distance / speed : Math.abs(de) / speed;
         layerTime += time;
         
-        if (speed > layerMaxSpeed) layerMaxSpeed = speed;
-        layerTotalSpeed += speed;
-        layerMoveCount++;
+        layerTotalFanSpeed += currentFanSpeed;
+        layerFanSpeedSamples++;
         
-        // Approximate flow rate: Volume / Time
-        // Volume = Area * distance = (pi * (1.75/2)^2) * de
         if (de > 0) {
-           const volume = Math.PI * Math.pow(1.75/2, 2) * de;
-           const flow = volume / time;
-           if (flow > layerMaxFlow) layerMaxFlow = flow;
+          // Print move
+          layerPrintTime += time;
+          layerFilament += de;
+          
+          if (speed > layerMaxSpeed) layerMaxSpeed = speed;
+          layerPrintSpeedTotal += speed;
+          layerPrintMoveCount++;
+          
+          // Corner detection (only on XY plane, ignoring Z hops)
+          if (dx !== 0 || dy !== 0) {
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const nx = dx / len;
+            const ny = dy / len;
+            
+            if (prevDx !== 0 || prevDy !== 0) {
+              const dot = nx * prevDx + ny * prevDy;
+              if (dot < 0.5 && speed > 40 && prevSpeed > 40) {
+                layerSharpCornerHighSpeedCount++;
+              }
+            }
+            
+            prevDx = nx;
+            prevDy = ny;
+            prevSpeed = speed;
+          }
+          
+          // Approximate flow rate: Volume / Time
+          if (time > 0) {
+             const volume = Math.PI * Math.pow(1.75/2, 2) * de;
+             const flow = volume / time;
+             if (flow > layerMaxFlow) layerMaxFlow = flow;
+          }
+        } else {
+          // Travel move or retraction
+          layerTravelTime += time;
+          prevDx = 0;
+          prevDy = 0;
         }
       }
       
@@ -104,13 +211,25 @@ export async function parseGCode(
   
   // push last layer
   if (layerTime > 0) {
+     const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : currentFanSpeed;
+     const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
+     const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || 
+                            (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
+
      layers.push({
         layerNum,
-        z: currentZ,
+        z: highestZ,
+        layerHeight: currentLayerHeight,
         time: layerTime,
+        printTime: layerPrintTime,
+        travelTime: layerTravelTime,
+        filamentUsed: layerFilament,
         maxSpeed: layerMaxSpeed,
-        avgSpeed: layerMoveCount > 0 ? layerTotalSpeed / layerMoveCount : 0,
-        flow: layerMaxFlow
+        avgSpeed,
+        flow: layerMaxFlow,
+        avgFanSpeed,
+        sharpCornerHighSpeedCount: layerSharpCornerHighSpeedCount,
+        coolingWarning
       });
   }
   

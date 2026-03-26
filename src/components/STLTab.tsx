@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
 
 export default function STLTab() {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
@@ -13,6 +13,47 @@ export default function STLTab() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'reading' | 'parsing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
+  const [optimizationMessage, setOptimizationMessage] = useState<string | null>(null);
+
+  const handleAutoOptimize = () => {
+    if (!dimensions) return;
+
+    const { x, y, z } = dimensions;
+    let newRotation: [number, number, number] = [0, 0, 0];
+    let message = "";
+    let newWallCount = wallCount;
+
+    // Find the smallest dimension to orient along the Z-axis (up)
+    // This maximizes bed adhesion and aligns layer lines along the longer axes for strength.
+    if (z <= x && z <= y) {
+      // Z is already the smallest, no rotation needed
+      newRotation = [0, 0, 0];
+      message = "Modellen er allerede optimalt orienteret (fladest muligt).";
+    } else if (x <= y && x <= z) {
+      // X is the smallest, rotate around Y by 90 degrees to lay it flat
+      newRotation = [0, Math.PI / 2, 0];
+      message = "Roteret 90° om Y-aksen for at maksimere kontaktfladen og styrken.";
+    } else {
+      // Y is the smallest, rotate around X by 90 degrees to lay it flat
+      newRotation = [Math.PI / 2, 0, 0];
+      message = "Roteret 90° om X-aksen for at maksimere kontaktfladen og styrken.";
+    }
+
+    // Suggest wall count based on aspect ratio (thin parts need more walls)
+    const maxDim = Math.max(x, y, z);
+    const minDim = Math.min(x, y, z);
+    if (maxDim / minDim > 5 || minDim < 10) {
+      newWallCount = 4;
+      message += " Delen er tynd/lang. Anbefaler 4 vægge for ekstra styrke.";
+    } else {
+      newWallCount = 2;
+      message += " Standard 2 vægge er tilstrækkeligt.";
+    }
+
+    setRotation(newRotation);
+    setWallCount(newWallCount);
+    setOptimizationMessage(message);
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -42,6 +83,7 @@ export default function STLTab() {
           
           setGeometry(geom);
           setRotation([0, 0, 0]);
+          setOptimizationMessage(null);
           setUploadStatus('success');
         } catch (err) {
           console.error(err);
@@ -143,6 +185,20 @@ export default function STLTab() {
                   <div className="font-mono text-sm text-zinc-200">{dimensions?.z.toFixed(1)}</div>
                 </div>
               </div>
+
+              <button 
+                onClick={handleAutoOptimize}
+                className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+              >
+                <Wand2 className="w-4 h-4" />
+                Auto-Optimér
+              </button>
+              
+              {optimizationMessage && (
+                <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-sm text-emerald-400 leading-relaxed">
+                  {optimizationMessage}
+                </div>
+              )}
             </div>
 
             <div>
