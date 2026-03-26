@@ -23,6 +23,7 @@ export default function STLTab() {
   const [showGCode, setShowGCode] = useState<boolean>(true);
   const [currentLayerIndex, setCurrentLayerIndex] = useState<number>(0);
   const [gcodeUploadStatus, setGcodeUploadStatus] = useState<'idle' | 'reading' | 'parsing' | 'success' | 'error'>('idle');
+  const [gcodeErrorMessage, setGcodeErrorMessage] = useState<string>('');
   const [gcodeFileName, setGcodeFileName] = useState<string>('');
   const [gcodeCenter, setGcodeCenter] = useState<THREE.Vector3>(new THREE.Vector3());
   const [viewMode, setViewMode] = useState<'solid' | 'wireframe' | 'xray'>('solid');
@@ -302,6 +303,7 @@ export default function STLTab() {
     } catch (err) {
       console.error(err);
       setGcodeUploadStatus('error');
+      setGcodeErrorMessage(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -505,28 +507,33 @@ export default function STLTab() {
               </p>
               
               {gcodeLayers.length === 0 ? (
-                <label 
-                  className={`flex flex-col items-center justify-center w-full h-20 border border-dashed rounded-lg cursor-pointer transition-colors ${
-                    isDraggingGcode ? 'border-emerald-500 bg-emerald-500/10' :
-                    gcodeUploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
-                    'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800'
-                  }`}
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingGcode(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); setIsDraggingGcode(false); }}
-                  onDrop={(e) => { e.preventDefault(); setIsDraggingGcode(false); handleGCodeUpload(e); }}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    {gcodeUploadStatus === 'parsing' ? (
-                      <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
-                    ) : (
-                      <Layers className="w-4 h-4 text-zinc-400" />
-                    )}
-                    <span className="text-sm text-zinc-400">
-                      {gcodeUploadStatus === 'parsing' ? 'Analyserer GCode...' : 'Upload GCode fil'}
-                    </span>
-                  </div>
-                  <input type="file" accept=".gcode" className="hidden" onChange={handleGCodeUpload} disabled={gcodeUploadStatus === 'parsing'} />
-                </label>
+                <>
+                  <label 
+                    className={`flex flex-col items-center justify-center w-full h-20 border border-dashed rounded-lg cursor-pointer transition-colors ${
+                      isDraggingGcode ? 'border-emerald-500 bg-emerald-500/10' :
+                      gcodeUploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
+                      'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800'
+                    }`}
+                    onDragOver={(e) => { e.preventDefault(); setIsDraggingGcode(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setIsDraggingGcode(false); }}
+                    onDrop={(e) => { e.preventDefault(); setIsDraggingGcode(false); handleGCodeUpload(e); }}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      {gcodeUploadStatus === 'parsing' ? (
+                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                      ) : (
+                        <Layers className="w-4 h-4 text-zinc-400" />
+                      )}
+                      <span className="text-sm text-zinc-400">
+                        {gcodeUploadStatus === 'parsing' ? 'Analyserer GCode...' : 'Upload GCode fil'}
+                      </span>
+                    </div>
+                    <input type="file" accept=".gcode" className="hidden" onChange={handleGCodeUpload} disabled={gcodeUploadStatus === 'parsing'} />
+                  </label>
+                  {gcodeUploadStatus === 'error' && gcodeErrorMessage && (
+                    <p className="text-xs text-red-400 mt-2 text-center">{gcodeErrorMessage}</p>
+                  )}
+                </>
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between bg-zinc-900 p-2 rounded-lg border border-zinc-800">

@@ -108,7 +108,7 @@ export default function GCodeTab() {
       }
 
       const parseResult = await parseGCode(file, setProgress);
-      const parsedLayers = parseResult.layers;
+      const parsedLayers = Array.isArray(parseResult) ? parseResult : parseResult.layers;
       setLayers(parsedLayers);
       setVisibleLayersCount(100);
       
@@ -169,11 +169,11 @@ export default function GCodeTab() {
         totalTravelTime,
         layerHeightConsistency,
         featureTimes,
-        boundingBox: parseResult.boundingBox
+        boundingBox: Array.isArray(parseResult) ? undefined : parseResult.boundingBox
       });
     } catch (err) {
       console.error("Error parsing GCODE:", err);
-      setError("Der opstod en fejl under læsning af GCODE filen.");
+      setError("Der opstod en fejl under læsning af GCODE filen: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsProcessing(false);
     }
