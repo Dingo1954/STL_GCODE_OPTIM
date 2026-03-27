@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stage, PerspectiveCamera } from '@react-three/drei';
+import { OrbitControls, Stage, PerspectiveCamera, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
-import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff, Save, Maximize2, Box as BoxIcon, FileCode2, AlertTriangle } from 'lucide-react';
+import { Upload, RotateCcw, RotateCw, Info, Loader2, CheckCircle2, AlertCircle, Wand2, Layers, Eye, EyeOff, Save, Maximize2, Box as BoxIcon, FileCode2, AlertTriangle, Snowflake } from 'lucide-react';
 import { parseGCodePath, GCodePathLayer } from '../utils/gcodeParser';
 
 export default function STLTab() {
@@ -579,6 +579,17 @@ export default function STLTab() {
                         onChange={(e) => setCurrentLayerIndex(parseInt(e.target.value))}
                         className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                       />
+                      
+                      <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-zinc-800">
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                          <span>Højhastigheds-hjørne (risiko for ringing)</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <span>Køle-advarsel (for lidt køling)</span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -670,6 +681,30 @@ export default function STLTab() {
                       </bufferGeometry>
                       <lineBasicMaterial vertexColors={true} linewidth={1} opacity={0.8} transparent />
                     </lineSegments>
+                    
+                    {/* Visual Feedback for Warnings */}
+                    {gcodeLayers[currentLayerIndex]?.cornerPositions && gcodeLayers[currentLayerIndex].cornerPositions!.length > 0 && (
+                      <points>
+                        <bufferGeometry>
+                          <bufferAttribute 
+                            attach="attributes-position" 
+                            count={gcodeLayers[currentLayerIndex].cornerPositions!.length / 3} 
+                            array={gcodeLayers[currentLayerIndex].cornerPositions!} 
+                            itemSize={3} 
+                          />
+                        </bufferGeometry>
+                        <pointsMaterial color="#ef4444" size={2} sizeAttenuation={false} />
+                      </points>
+                    )}
+                    
+                    {gcodeLayers[currentLayerIndex]?.coolingWarning && (
+                      <Html position={[gcodeCenter.x, gcodeCenter.y, gcodeLayers[currentLayerIndex].z]} center zIndexRange={[100, 0]}>
+                        <div className="bg-blue-500/90 text-white text-[10px] px-2 py-1 rounded-full whitespace-nowrap border border-blue-400 backdrop-blur-sm flex items-center gap-1 shadow-lg pointer-events-none">
+                          <Snowflake className="w-3 h-3" />
+                          Køle-advarsel
+                        </div>
+                      </Html>
+                    )}
                   </group>
                 )}
               </Stage>

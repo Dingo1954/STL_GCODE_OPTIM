@@ -61,6 +61,8 @@ export interface GCodePathLayer {
   z: number;
   positions: Float32Array; // [x1, y1, z1, x2, y2, z2, ...] for LineSegments
   colors: Float32Array; // [r1, g1, b1, r2, g2, b2, ...]
+  coolingWarning?: boolean;
+  cornerPositions?: Float32Array; // [x1, y1, z1, x2, y2, z2, ...] for Points
 }
 
 // Helper to map speed to color (Blue -> Cyan -> Green -> Yellow -> Red)
@@ -103,6 +105,9 @@ export function parseGCodePath(
 
 export interface OptimizeOptions {
   flowMultiplier?: number;
+  fixCooling?: boolean;
+  fixCorners?: boolean;
+  fixFlow?: boolean;
 }
 
 export async function optimizeGCode(file: File, layerStats: LayerStat[], options?: OptimizeOptions): Promise<Blob> {
@@ -111,9 +116,10 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
   const optimizedLines: string[] = [];
   
   let highestZ = -999;
-  let layerNum = 0;
-  let isSpeedReduced = false;
-  let isAccelReduced = false;
+  let currentZ = -999;
+  let lastOptimizedZ = -999;
+  let currentSpeedFactor = 100;
+  let currentAccel = 1000;
   let optimizationsCount = 0;
   
   optimizedLines.push("; ===============================================");
@@ -125,48 +131,51 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
   }
   optimizedLines.push("; ===============================================");
 
-  const applyLayerOptimizations = (num: number, output: string[]) => {
-    const stats = layerStats.find(s => s.layerNum === num);
-    if (stats) {
-      // 1. Cooling Optimization
-      if (stats.coolingWarning) {
-        output.push("M106 S255 ; >>> OPTIMERET: Maksimal køling pga. kort lagtid (Lag " + num + ")");
-        optimizationsCount++;
-        
-        // If layer time is critically short (< 10s), forcefully slow down the print
+  const applyLayerOptimizations = (zHeight: number, output: string[]) => {
+    // Find the stats for the layer that matches this Z height (with a small tolerance)
+    const stats = layerStats.find(s => Math.abs(s.z - zHeight) < 0.01);
+    
+    if (stats && zHeight > lastOptimizedZ + 0.01) {
+      lastOptimizedZ = zHeight;
+      const needsCoolingFix = options?.fixCooling && stats.coolingWarning;
+      const needsCornerFix = options?.fixCorners && stats.sharpCornerHighSpeedCount > 10;
+      const needsFlowFix = options?.fixFlow && stats.flow > 15;
+
+      let targetSpeedFactor = 100;
+      let targetAccel = 1000;
+      let needsCooling = false;
+
+      if (needsCoolingFix) {
+        needsCooling = true;
         if (stats.time < 10) {
-          const speedFactor = Math.max(30, Math.round((stats.time / 15) * 100)); // Slow down to min 30%
-          output.push(`M220 S${speedFactor} ; >>> OPTIMERET: Hastighed reduceret til ${speedFactor}% for at sikre køling`);
-          isSpeedReduced = true;
-          optimizationsCount++;
+          targetSpeedFactor = Math.min(targetSpeedFactor, Math.max(30, Math.round((stats.time / 15) * 100)));
         }
       }
 
-      // 2. Sharp Corner / Quality Optimization
-      if (stats.sharpCornerHighSpeedCount > 10) {
-        if (!isSpeedReduced) {
-          output.push("M220 S80 ; >>> OPTIMERET: Reduceret hastighed pga. skarpe hjørner (Lag " + num + ")");
-          isSpeedReduced = true;
-          optimizationsCount++;
-        }
-        if (!isAccelReduced) {
-          output.push("M204 P500 ; >>> OPTIMERET: Reduceret acceleration for bedre hjørnekvalitet");
-          isAccelReduced = true;
-          optimizationsCount++;
-        }
-      } 
-      
-      // 3. Reset Optimizations if conditions are normal
-      if (!stats.coolingWarning && stats.sharpCornerHighSpeedCount <= 10) {
-        if (isSpeedReduced) {
-          output.push("M220 S100 ; >>> OPTIMERET: Hastighed nulstillet (Lag " + num + ")");
-          isSpeedReduced = false;
-        }
-        if (isAccelReduced) {
-          // Assuming default acceleration is around 1000-1500. We'll use 1000 as a safe default reset.
-          output.push("M204 P1000 ; >>> OPTIMERET: Acceleration nulstillet");
-          isAccelReduced = false;
-        }
+      if (needsCornerFix) {
+        targetSpeedFactor = Math.min(targetSpeedFactor, 80);
+        targetAccel = Math.min(targetAccel, 500);
+      }
+
+      if (needsFlowFix) {
+        targetSpeedFactor = Math.min(targetSpeedFactor, Math.max(10, Math.round((15 / stats.flow) * 100)));
+      }
+
+      if (needsCooling) {
+        output.push(`M106 S255 ; >>> OPTIMERET: Maksimal køling pga. kort lagtid (Z: ${zHeight.toFixed(2)})`);
+        optimizationsCount++;
+      }
+
+      if (targetSpeedFactor !== currentSpeedFactor) {
+        output.push(`M220 S${targetSpeedFactor} ; >>> OPTIMERET: Hastighed justeret til ${targetSpeedFactor}% (Z: ${zHeight.toFixed(2)})`);
+        currentSpeedFactor = targetSpeedFactor;
+        optimizationsCount++;
+      }
+
+      if (targetAccel !== currentAccel) {
+        output.push(`M204 P${targetAccel} ; >>> OPTIMERET: Acceleration justeret til ${targetAccel} (Z: ${zHeight.toFixed(2)})`);
+        currentAccel = targetAccel;
+        optimizationsCount++;
       }
     }
   };
@@ -174,27 +183,18 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
   for (const line of lines) {
     const trimmed = line.trim();
     
-    // Detect layer change via comment (preferred)
-    if (trimmed.startsWith(';') && (
-      trimmed.includes('LAYER:') || 
-      trimmed.includes('LAYER_CHANGE') || 
-      trimmed.toLowerCase().includes('layer ')
-    )) {
-      layerNum++;
-      applyLayerOptimizations(layerNum, optimizedLines);
-    } 
-    // Detect layer change via Z height (fallback)
-    else if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
+    // Update current Z height
+    if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
       const zMatch = trimmed.match(/Z([\d.]+)/);
-      const eMatch = trimmed.match(/E([\d.-]+)/);
+      if (zMatch) {
+        currentZ = parseFloat(zMatch[1]);
+      }
       
-      if (zMatch && eMatch && parseFloat(eMatch[1]) > 0) {
-        const newZ = parseFloat(zMatch[1]);
-        if (newZ > highestZ + 0.001) {
-          highestZ = newZ;
-          layerNum++;
-          applyLayerOptimizations(layerNum, optimizedLines);
-        }
+      // If we are extruding and we are at a new Z height, apply optimizations
+      const eMatch = trimmed.match(/E([\d.-]+)/);
+      if (eMatch && parseFloat(eMatch[1]) > 0 && currentZ > highestZ + 0.001) {
+        highestZ = currentZ;
+        applyLayerOptimizations(highestZ, optimizedLines);
       }
     }
     

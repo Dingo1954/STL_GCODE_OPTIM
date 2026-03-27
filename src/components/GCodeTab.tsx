@@ -36,6 +36,10 @@ export default function GCodeTab() {
   const [error, setError] = useState<string | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [selectedLayer, setSelectedLayer] = useState<LayerStat | null>(null);
+  const [fixCooling, setFixCooling] = useState(true);
+  const [fixCorners, setFixCorners] = useState(true);
+  const [fixFlow, setFixFlow] = useState(true);
 
   const validateGCodeFile = async (file: File): Promise<{ isValid: boolean; error?: string }> => {
     // Tjek filendelse først
@@ -133,7 +137,7 @@ export default function GCodeTab() {
         
         if (l.featureTimes) {
           Object.entries(l.featureTimes).forEach(([feature, time]) => {
-            featureTimes[feature] = (featureTimes[feature] || 0) + time;
+            featureTimes[feature] = (featureTimes[feature] || 0) + Number(time);
           });
         }
         
@@ -184,7 +188,12 @@ export default function GCodeTab() {
     
     setIsOptimizing(true);
     try {
-      const optimizedBlob = await optimizeGCode(originalFile, layers, { flowMultiplier });
+      const optimizedBlob = await optimizeGCode(originalFile, layers, { 
+        flowMultiplier,
+        fixCooling,
+        fixCorners,
+        fixFlow
+      });
       const url = URL.createObjectURL(optimizedBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -625,6 +634,108 @@ export default function GCodeTab() {
                 </div>
               </div>
             )}
+
+            {/* Recommendations Section */}
+            {(stats.coolingWarnings > 0 || stats.cornerWarnings > 0 || stats.maxFlow > 15 || stats.avgSpeed < 40) && (
+              <div className="bg-zinc-900/80 border border-zinc-700/50 rounded-xl p-6 mt-6">
+                <div className="flex items-center gap-3 text-zinc-100 mb-4">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  <h3 className="text-lg font-medium">Løsningsforslag & Anbefalinger</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {stats.coolingWarnings > 0 && (
+                    <div className="bg-amber-950/20 border border-amber-900/30 rounded-lg p-4 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-amber-400 font-medium flex items-center gap-2 mb-2">
+                          <Wind className="w-4 h-4" /> Kritisk kort lagtid
+                        </h4>
+                        <p className="text-sm text-zinc-300 mb-3">
+                          Nogle lag printes for hurtigt til at plastikken kan nå at køle ned. 
+                          <strong> Løsning:</strong> Øg "Minimum Layer Time" i din slicer (typisk til 10-15 sekunder), eller sørg for at blæseren kører på 100% på disse lag ("Minimum Cooling Speed").
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={fixCooling} 
+                          onChange={(e) => setFixCooling(e.target.checked)}
+                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500/20"
+                        />
+                        <span className="text-xs text-zinc-400">Ret automatisk i GCODE (sænk hastighed)</span>
+                      </label>
+                    </div>
+                  )}
+                  {stats.cornerWarnings > 0 && (
+                    <div className="bg-red-950/20 border border-red-900/30 rounded-lg p-4 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-red-400 font-medium flex items-center gap-2 mb-2">
+                          <CornerUpRight className="w-4 h-4" /> Hurtige hjørner
+                        </h4>
+                        <p className="text-sm text-zinc-300 mb-3">
+                          Der er mange skarpe retningsskift ved høj hastighed. Dette kan forårsage "ringing" eller "ghosting" på printets overflade.
+                          <strong> Løsning:</strong> Sænk hastigheden for yderste vægge (Outer Wall Speed), eller juster Jerk/Acceleration i sliceren for at blødgøre bevægelserne.
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={fixCorners} 
+                          onChange={(e) => setFixCorners(e.target.checked)}
+                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-red-500 focus:ring-red-500/20"
+                        />
+                        <span className="text-xs text-zinc-400">Ret automatisk i GCODE (reducer accel/hastighed)</span>
+                      </label>
+                    </div>
+                  )}
+                  {stats.maxFlow > 15 && (
+                    <div className="bg-orange-950/20 border border-orange-900/30 rounded-lg p-4 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-orange-400 font-medium flex items-center gap-2 mb-2">
+                          <Zap className="w-4 h-4" /> Ekstremt højt filament flow
+                        </h4>
+                        <p className="text-sm text-zinc-300 mb-3">
+                          Dit maksimale flow er over 15 mm³/s ({stats.maxFlow.toFixed(1)} mm³/s). Standard hotends (som på en Ender 3) kan typisk kun klare 10-15 mm³/s før ekstruderen begynder at klikke (under-extrusion).
+                          <strong> Løsning:</strong> Sænk din generelle printhastighed, reducer laghøjden, eller reducer linjebredden (Line Width).
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={fixFlow} 
+                          onChange={(e) => setFixFlow(e.target.checked)}
+                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-orange-500 focus:ring-orange-500/20"
+                        />
+                        <span className="text-xs text-zinc-400">Ret automatisk i GCODE (begræns hastighed)</span>
+                      </label>
+                    </div>
+                  )}
+                  {stats.avgSpeed < 40 && stats.maxFlow <= 15 && (
+                    <div className="bg-blue-950/20 border border-blue-900/30 rounded-lg p-4">
+                      <h4 className="text-blue-400 font-medium flex items-center gap-2 mb-2">
+                        <Clock className="w-4 h-4" /> Lav gennemsnitshastighed
+                      </h4>
+                      <p className="text-sm text-zinc-300">
+                        Din gennemsnitshastighed er relativt lav ({stats.avgSpeed.toFixed(0)} mm/s). Hvis din printer kan klare det, kan du optimere printtiden.
+                        <strong> Løsning:</strong> Øg Infill Speed og Inner Wall Speed, da disse ikke påvirker overfladekvaliteten synderligt.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {(stats.coolingWarnings > 0 || stats.cornerWarnings > 0 || stats.maxFlow > 15) && (
+                  <div className="mt-6 flex justify-end">
+                    <button 
+                      onClick={handleOptimizeAndDownload}
+                      disabled={isOptimizing || (!fixCooling && !fixCorners && !fixFlow)}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                    >
+                      {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Anvend valgte rettelser & Download GCODE
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -632,6 +743,58 @@ export default function GCodeTab() {
       {/* Charts */}
       {layers.length > 0 && (
         <div className="flex flex-col gap-6 flex-1">
+          {selectedLayer && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-zinc-100 font-medium text-lg">
+                  Valgt Lag: {selectedLayer.layerNum} <span className="text-zinc-500 text-sm ml-2">(Z: {selectedLayer.z.toFixed(2)} mm)</span>
+                </h3>
+                <button 
+                  onClick={() => setSelectedLayer(null)}
+                  className="text-zinc-500 hover:text-zinc-300 text-sm"
+                >
+                  Ryd valg
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="flex flex-col">
+                  <span className="text-xs text-zinc-500 mb-1">Tid</span>
+                  <span className="text-lg font-mono text-zinc-100">{formatTime(selectedLayer.time)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-zinc-500 mb-1">Gns. Hastighed</span>
+                  <span className="text-lg font-mono text-zinc-100">{selectedLayer.avgSpeed.toFixed(0)} <span className="text-sm text-zinc-500">mm/s</span></span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-zinc-500 mb-1">Flow</span>
+                  <span className="text-lg font-mono text-zinc-100">{selectedLayer.flow.toFixed(2)} <span className="text-sm text-zinc-500">mm³/s</span></span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-zinc-500 mb-1">Blæser</span>
+                  <span className="text-lg font-mono text-zinc-100">{Math.round((selectedLayer.avgFanSpeed / 255) * 100)}%</span>
+                </div>
+              </div>
+
+              {(selectedLayer.coolingWarning || selectedLayer.sharpCornerHighSpeedCount > 10) && (
+                <div className="flex flex-wrap gap-2 mt-2 pt-4 border-t border-zinc-800/50">
+                  {selectedLayer.coolingWarning && (
+                    <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
+                      <span>Køle-advarsel: Dette lag printes hurtigt med utilstrækkelig køling.</span>
+                    </div>
+                  )}
+                  {selectedLayer.sharpCornerHighSpeedCount > 10 && (
+                    <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
+                      <CornerUpRight className="w-3.5 h-3.5 mr-1.5" />
+                      <span>Hurtige hjørner: {selectedLayer.sharpCornerHighSpeedCount} skarpe hjørner taget ved høj hastighed.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end mb-2">
             <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-1">
               <button
@@ -655,7 +818,16 @@ export default function GCodeTab() {
               <p className="text-xs text-zinc-500 mb-6">Tid brugt per lag (grøn) vs. blæserhastighed (blå). Korte lag kræver høj køling.</p>
               <div className="flex-1 w-full min-h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                  <LineChart 
+                    data={layers} 
+                    syncId="gcodeCharts" 
+                    margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
+                    onClick={(e: any) => {
+                      if (e && e.activePayload && e.activePayload.length > 0) {
+                        setSelectedLayer(e.activePayload[0].payload);
+                      }
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis 
                       dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
@@ -695,7 +867,16 @@ export default function GCodeTab() {
               <p className="text-xs text-zinc-500 mb-6">Gns. hastighed (lilla) og antal skarpe hjørner taget ved høj fart (rød).</p>
               <div className="flex-1 w-full min-h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                  <ComposedChart 
+                    data={layers} 
+                    syncId="gcodeCharts" 
+                    margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
+                    onClick={(e: any) => {
+                      if (e && e.activePayload && e.activePayload.length > 0) {
+                        setSelectedLayer(e.activePayload[0].payload);
+                      }
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis 
                       dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
@@ -734,7 +915,16 @@ export default function GCodeTab() {
             <p className="text-xs text-zinc-500 mb-6">Gennemsnitlig printhastighed per lag. Markering ved kritisk lav hastighed (40 mm/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <LineChart 
+                  data={layers} 
+                  syncId="gcodeCharts" 
+                  margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
+                  onClick={(e: any) => {
+                    if (e && e.activePayload && e.activePayload.length > 0) {
+                      setSelectedLayer(e.activePayload[0].payload);
+                    }
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis 
                     dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
@@ -762,7 +952,16 @@ export default function GCodeTab() {
             <p className="text-xs text-zinc-500 mb-6">Sammenligning af tid brugt på ekstrudering (grøn) vs. rejsebevægelser (orange).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <ComposedChart 
+                  data={layers} 
+                  syncId="gcodeCharts" 
+                  margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
+                  onClick={(e: any) => {
+                    if (e && e.activePayload && e.activePayload.length > 0) {
+                      setSelectedLayer(e.activePayload[0].payload);
+                    }
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis 
                     dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
@@ -794,7 +993,16 @@ export default function GCodeTab() {
             <p className="text-xs text-zinc-500 mb-6">Volumetrisk flow per lag. Markering ved høj flow (15 mm³/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={layers} syncId="gcodeCharts" margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <AreaChart 
+                  data={layers} 
+                  syncId="gcodeCharts" 
+                  margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
+                  onClick={(e: any) => {
+                    if (e && e.activePayload && e.activePayload.length > 0) {
+                      setSelectedLayer(e.activePayload[0].payload);
+                    }
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis 
                     dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 

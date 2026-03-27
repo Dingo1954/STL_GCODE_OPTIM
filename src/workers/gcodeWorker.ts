@@ -23,6 +23,9 @@ self.onmessage = async (e: MessageEvent) => {
       let currentF = 3000; // default 50mm/s
       let currentFanSpeed = 0; // 0-255
       let isRelativeE = false;
+      let feedrateMultiplier = 1.0;
+      let flowMultiplier = 1.0;
+      let currentAcceleration = 3000; // default acceleration
       
       // Track previous segment vector for corner detection
       let prevDx = 0;
@@ -131,9 +134,25 @@ self.onmessage = async (e: MessageEvent) => {
           if (trimmedLine.startsWith('M106')) {
             const match = trimmedLine.match(/S(\d+)/);
             if (match) currentFanSpeed = parseInt(match[1], 10);
+            else currentFanSpeed = 255;
             continue;
           } else if (trimmedLine.startsWith('M107')) {
             currentFanSpeed = 0;
+            continue;
+          }
+
+          // Feedrate and Flow multipliers
+          if (trimmedLine.startsWith('M220')) {
+            const match = trimmedLine.match(/S(\d+)/);
+            if (match) feedrateMultiplier = parseInt(match[1], 10) / 100.0;
+            continue;
+          } else if (trimmedLine.startsWith('M221')) {
+            const match = trimmedLine.match(/S(\d+)/);
+            if (match) flowMultiplier = parseInt(match[1], 10) / 100.0;
+            continue;
+          } else if (trimmedLine.startsWith('M204')) {
+            const match = trimmedLine.match(/[PS](\d+)/);
+            if (match) currentAcceleration = parseInt(match[1], 10);
             continue;
           }
 
@@ -188,7 +207,8 @@ self.onmessage = async (e: MessageEvent) => {
           const dz = newZ - currentZ;
           
           const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
-          const speed = newF / 60; // mm/s
+          const speed = (newF / 60) * feedrateMultiplier; // mm/s
+          const actualDe = de * flowMultiplier;
           
           if (distance > 0 || Math.abs(de) > 0) {
             const time = distance > 0 ? distance / speed : Math.abs(de) / speed;
@@ -205,7 +225,7 @@ self.onmessage = async (e: MessageEvent) => {
             if (de > 0) {
               // Print move
               layerPrintTime += time;
-              layerFilament += de;
+              layerFilament += actualDe;
               
               if (speed > layerMaxSpeed) layerMaxSpeed = speed;
               layerPrintSpeedTotal += speed;
@@ -219,7 +239,7 @@ self.onmessage = async (e: MessageEvent) => {
                 
                 if (prevDx !== 0 || prevDy !== 0) {
                   const dot = nx * prevDx + ny * prevDy;
-                  if (dot < 0.5 && speed > 40 && prevSpeed > 40) {
+                  if (dot < 0.5 && speed > 40 && prevSpeed > 40 && currentAcceleration > 500) {
                     layerSharpCornerHighSpeedCount++;
                   }
                 }
@@ -230,7 +250,7 @@ self.onmessage = async (e: MessageEvent) => {
               }
               
               if (time > 0) {
-                 const volume = Math.PI * Math.pow(1.75/2, 2) * de;
+                 const volume = Math.PI * Math.pow(1.75/2, 2) * actualDe;
                  const flow = volume / time;
                  if (flow > layerMaxFlow) layerMaxFlow = flow;
               }
@@ -270,11 +290,26 @@ self.onmessage = async (e: MessageEvent) => {
       let currentX = 0, currentY = 0, currentZ = 0, currentE = 0;
       let currentF = 3000;
       let isRelativeE = false;
+      let feedrateMultiplier = 1.0;
+      let flowMultiplier = 1.0;
+      let currentAcceleration = 3000;
       let highestZ = -999;
       let layerNum = 0;
       
       let currentLayerPositions: number[] = [];
       let currentLayerColors: number[] = [];
+      let currentLayerCornerPositions: number[] = [];
+      
+      let currentFanSpeed = 0;
+      let layerTime = 0;
+      let layerTotalFanSpeed = 0;
+      let layerFanSpeedSamples = 0;
+      let layerPrintSpeedTotal = 0;
+      let layerPrintMoveCount = 0;
+      
+      let prevDx = 0;
+      let prevDy = 0;
+      let prevSpeed = 0;
       
       const chunkSize = 50000;
       
@@ -287,6 +322,32 @@ self.onmessage = async (e: MessageEvent) => {
             continue;
           } else if (line.startsWith('M82')) {
             isRelativeE = false;
+            continue;
+          } else if (line.startsWith('M106')) {
+            const parts = line.split(' ');
+            let hasS = false;
+            for (const part of parts) {
+              if (part.startsWith('S')) {
+                currentFanSpeed = parseFloat(part.substring(1));
+                hasS = true;
+              }
+            }
+            if (!hasS) currentFanSpeed = 255;
+            continue;
+          } else if (line.startsWith('M107')) {
+            currentFanSpeed = 0;
+            continue;
+          } else if (line.startsWith('M220')) {
+            const match = line.match(/S(\d+)/);
+            if (match) feedrateMultiplier = parseInt(match[1], 10) / 100.0;
+            continue;
+          } else if (line.startsWith('M221')) {
+            const match = line.match(/S(\d+)/);
+            if (match) flowMultiplier = parseInt(match[1], 10) / 100.0;
+            continue;
+          } else if (line.startsWith('M204')) {
+            const match = line.match(/[PS](\d+)/);
+            if (match) currentAcceleration = parseInt(match[1], 10);
             continue;
           }
 
@@ -319,17 +380,43 @@ self.onmessage = async (e: MessageEvent) => {
 
           if (newZ > highestZ + 0.001) {
             if (currentLayerPositions.length > 0) {
+              const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : 0;
+              const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
+              const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
+
               layers.push({
                 layerNum,
                 z: highestZ,
                 positions: new Float32Array(currentLayerPositions),
-                colors: new Float32Array(currentLayerColors)
+                colors: new Float32Array(currentLayerColors),
+                coolingWarning,
+                cornerPositions: new Float32Array(currentLayerCornerPositions)
               });
             }
             highestZ = newZ;
             layerNum++;
             currentLayerPositions = [];
             currentLayerColors = [];
+            currentLayerCornerPositions = [];
+            layerTime = 0;
+            layerTotalFanSpeed = 0;
+            layerFanSpeedSamples = 0;
+            layerPrintSpeedTotal = 0;
+            layerPrintMoveCount = 0;
+          }
+          
+          const dx = newX - currentX;
+          const dy = newY - currentY;
+          const dz = newZ - currentZ;
+          const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+          const speed = (newF / 60) * feedrateMultiplier; // mm/s
+          const actualDe = de * flowMultiplier;
+          
+          if (distance > 0 || Math.abs(de) > 0) {
+            const time = distance > 0 ? distance / speed : Math.abs(de) / speed;
+            layerTime += time;
+            layerTotalFanSpeed += currentFanSpeed;
+            layerFanSpeedSamples++;
           }
           
           if (de > 0) {
@@ -338,10 +425,33 @@ self.onmessage = async (e: MessageEvent) => {
             currentLayerPositions.push(newX, newY, newZ);
             
             // Calculate color based on speed
-            const speed = newF / 60; // mm/s
             const color = speedToColor(speed);
             currentLayerColors.push(color[0], color[1], color[2]);
             currentLayerColors.push(color[0], color[1], color[2]);
+            
+            layerPrintSpeedTotal += speed;
+            layerPrintMoveCount++;
+            
+            // Corner detection
+            if (dx !== 0 || dy !== 0) {
+              const len = Math.sqrt(dx*dx + dy*dy);
+              const nx = dx / len;
+              const ny = dy / len;
+              
+              if (prevDx !== 0 || prevDy !== 0) {
+                const dot = nx * prevDx + ny * prevDy;
+                if (dot < 0.5 && speed > 40 && prevSpeed > 40 && currentAcceleration > 500) {
+                  currentLayerCornerPositions.push(currentX, currentY, currentZ);
+                }
+              }
+              
+              prevDx = nx;
+              prevDy = ny;
+              prevSpeed = speed;
+            }
+          } else {
+            prevDx = 0;
+            prevDy = 0;
           }
           
           currentX = newX;
@@ -355,11 +465,17 @@ self.onmessage = async (e: MessageEvent) => {
       }
       
       if (currentLayerPositions.length > 0) {
+        const avgFanSpeed = layerFanSpeedSamples > 0 ? layerTotalFanSpeed / layerFanSpeedSamples : 0;
+        const avgSpeed = layerPrintMoveCount > 0 ? layerPrintSpeedTotal / layerPrintMoveCount : 0;
+        const coolingWarning = (layerTime < 15 && avgFanSpeed < 127) || (layerTime > 60 && avgSpeed < 30 && avgFanSpeed < 127);
+
         layers.push({
           layerNum,
           z: highestZ,
           positions: new Float32Array(currentLayerPositions),
-          colors: new Float32Array(currentLayerColors)
+          colors: new Float32Array(currentLayerColors),
+          coolingWarning,
+          cornerPositions: new Float32Array(currentLayerCornerPositions)
         });
       }
       
