@@ -148,9 +148,24 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
   header.push("");
   blobParts.push(header.join('\n') + '\n');
 
+  let currentLayerIndex = 0;
+
   const applyLayerOptimizations = (zHeight: number, output: string[]) => {
     // Find the stats for the layer that matches this Z height (with a small tolerance)
-    const stats = layerStats.find(s => Math.abs(s.z - zHeight) < 0.01);
+    let stats = null;
+    // Start searching from the current index to avoid O(N^2) complexity
+    for (let i = currentLayerIndex; i < layerStats.length; i++) {
+      if (Math.abs(layerStats[i].z - zHeight) < 0.01) {
+        stats = layerStats[i];
+        currentLayerIndex = i;
+        break;
+      }
+    }
+    
+    if (!stats) {
+      // Fallback: search from the beginning if not found (e.g., non-sequential Z heights)
+      stats = layerStats.find(s => Math.abs(s.z - zHeight) < 0.01);
+    }
     
     if (stats && zHeight > lastOptimizedZ + 0.01) {
       lastOptimizedZ = zHeight;
@@ -286,6 +301,9 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
     
     blobParts.push(chunkOutput.join('\n') + '\n');
     offset += chunkSize;
+    
+    // Yield to the main thread to prevent UI freezing
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
 
   if (leftover) {

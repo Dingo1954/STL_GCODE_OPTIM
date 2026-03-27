@@ -63,10 +63,10 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8 h-[calc(100vh-4rem)] overflow-y-auto">
+      <main className="max-w-7xl mx-auto px-6 py-8 h-[calc(100vh-4rem)]">
         {activeTab === 'stl' && <STLTab />}
-        {activeTab === 'gcode' && <GCodeTab />}
-        {activeTab === 'guide' && <GuideTab />}
+        {activeTab === 'gcode' && <div className="h-full overflow-y-auto custom-scrollbar pr-2"><GCodeTab /></div>}
+        {activeTab === 'guide' && <div className="h-full overflow-y-auto custom-scrollbar pr-2"><GuideTab /></div>}
       </main>
     </div>
   );

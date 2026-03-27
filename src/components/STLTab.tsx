@@ -324,9 +324,9 @@ export default function STLTab() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 h-full">
+    <div className="flex flex-col md:flex-row gap-6 h-full overflow-y-auto md:overflow-hidden custom-scrollbar pr-2 md:pr-0 pb-8 md:pb-0">
       {/* Sidebar */}
-      <div className="w-full md:w-80 bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-6">
+      <div className="w-full md:w-80 bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-5 md:overflow-y-auto shrink-0 custom-scrollbar">
         <div>
           <h2 className="text-xl font-semibold text-zinc-100 mb-2">STL Optimerer</h2>
           <p className="text-zinc-400 text-sm">
@@ -335,7 +335,7 @@ export default function STLTab() {
         </div>
 
         <label 
-          className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+          className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
             isDraggingStl ? 'border-emerald-500 bg-emerald-500/10' :
             uploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
             uploadStatus === 'success' ? 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20' :
@@ -345,36 +345,36 @@ export default function STLTab() {
           onDragLeave={(e) => { e.preventDefault(); setIsDraggingStl(false); }}
           onDrop={(e) => { e.preventDefault(); setIsDraggingStl(false); handleFileUpload(e); }}
         >
-          <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
+          <div className="flex flex-col items-center justify-center pt-4 pb-4 text-center px-4">
             {uploadStatus === 'idle' && (
               <>
-                <Upload className="w-8 h-8 mb-3 text-zinc-400" />
-                <p className="mb-2 text-sm text-zinc-400"><span className="font-semibold">Klik for at uploade</span></p>
+                <Upload className="w-6 h-6 mb-2 text-zinc-400" />
+                <p className="mb-1 text-sm text-zinc-400"><span className="font-semibold">Klik for at uploade</span></p>
                 <p className="text-xs text-zinc-500">.STL filer</p>
               </>
             )}
             {uploadStatus === 'reading' && (
               <>
-                <Loader2 className="w-8 h-8 mb-3 text-emerald-500 animate-spin" />
+                <Loader2 className="w-6 h-6 mb-2 text-emerald-500 animate-spin" />
                 <p className="text-sm text-zinc-300">Læser fil...</p>
               </>
             )}
             {uploadStatus === 'parsing' && (
               <>
-                <Loader2 className="w-8 h-8 mb-3 text-emerald-500 animate-spin" />
+                <Loader2 className="w-6 h-6 mb-2 text-emerald-500 animate-spin" />
                 <p className="text-sm text-zinc-300">Analyserer 3D model...</p>
               </>
             )}
             {uploadStatus === 'success' && (
               <>
-                <CheckCircle2 className="w-8 h-8 mb-3 text-emerald-500" />
+                <CheckCircle2 className="w-6 h-6 mb-2 text-emerald-500" />
                 <p className="text-sm text-emerald-400 font-medium truncate max-w-[200px]">{fileName}</p>
                 <p className="text-xs text-emerald-500/70 mt-1">Upload fuldført</p>
               </>
             )}
             {uploadStatus === 'error' && (
               <>
-                <AlertCircle className="w-8 h-8 mb-3 text-red-500" />
+                <AlertCircle className="w-6 h-6 mb-2 text-red-500" />
                 <p className="text-sm text-red-400 font-medium">Upload fejlede</p>
                 <p className="text-xs text-red-500/70 mt-1">{errorMessage}</p>
               </>
@@ -384,9 +384,9 @@ export default function STLTab() {
         </label>
 
         {geometry && (
-          <div className="space-y-6">
-            <div className="bg-zinc-800/50 p-4 rounded-lg border border-zinc-700/50" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
-              <div className="flex justify-between items-center mb-3">
+          <div className="space-y-5">
+            <div className="bg-zinc-800/50 p-3 rounded-lg border border-zinc-700/50" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
+              <div className="flex justify-between items-center mb-2">
                 <h3 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
                   <Info className="w-4 h-4" />
                   Dimensioner (mm)
@@ -401,23 +401,23 @@ export default function STLTab() {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-zinc-900 p-2 rounded">
-                  <div className="text-xs text-zinc-500">X</div>
+                <div className="bg-zinc-900 p-1.5 rounded">
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">X</div>
                   <div className="font-mono text-sm text-zinc-200">{dimensions?.x.toFixed(1)}</div>
                 </div>
-                <div className="bg-zinc-900 p-2 rounded">
-                  <div className="text-xs text-zinc-500">Y</div>
+                <div className="bg-zinc-900 p-1.5 rounded">
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Y</div>
                   <div className="font-mono text-sm text-zinc-200">{dimensions?.y.toFixed(1)}</div>
                 </div>
-                <div className="bg-zinc-900 p-2 rounded">
-                  <div className="text-xs text-zinc-500">Z</div>
+                <div className="bg-zinc-900 p-1.5 rounded">
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Z</div>
                   <div className="font-mono text-sm text-zinc-200">{dimensions?.z.toFixed(1)}</div>
                 </div>
               </div>
 
               <button 
                 onClick={handleAutoOptimize}
-                className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+                className="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-4 rounded-lg text-sm font-medium transition-colors"
                 title="Forsøger automatisk at finde den bedste orientering for modellen for at minimere behovet for supportmateriale og maksimere styrken."
               >
                 <Wand2 className="w-4 h-4" />
@@ -425,58 +425,58 @@ export default function STLTab() {
               </button>
               
               {optimizationMessage && (
-                <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-sm text-emerald-400 leading-relaxed">
+                <div className="mt-2 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded text-xs text-emerald-400 leading-relaxed">
                   {optimizationMessage}
                 </div>
               )}
             </div>
 
             <div title="Rotér modellen for at sikre at de svageste punkter (mellem lagene) ikke udsættes for direkte belastning.">
-              <h3 className="text-sm font-medium text-zinc-300 mb-3">Rotér for styrke</h3>
-              <p className="text-xs text-zinc-500 mb-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-2">Rotér for styrke</h3>
+              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
                 Husk: FDM-print er svagest mellem lagene (Z-aksen). Rotér din model så belastningen ligger langs X/Y-aksen.
               </p>
               
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-zinc-400">X-Akse</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => rotate('x', -45)} className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-4 h-4" /></button>
-                    <button onClick={() => rotate('x', 45)} className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-4 h-4" /></button>
+                  <span className="text-xs text-zinc-400">X-Akse</span>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => rotate('x', -45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('x', 45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-zinc-400">Y-Akse</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => rotate('y', -45)} className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-4 h-4" /></button>
-                    <button onClick={() => rotate('y', 45)} className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-4 h-4" /></button>
+                  <span className="text-xs text-zinc-400">Y-Akse</span>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => rotate('y', -45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('y', 45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-zinc-400">Z-Akse</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => rotate('z', -45)} className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-4 h-4" /></button>
-                    <button onClick={() => rotate('z', 45)} className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-4 h-4" /></button>
+                  <span className="text-xs text-zinc-400">Z-Akse</span>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => rotate('z', -45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('z', 45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="pt-4 border-t border-zinc-800" title="At øge antallet af vægge (perimeters) er ofte den mest effektive måde at øge en 3D-printet dels styrke på, frem for at øge infill.">
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">Styrk med ekstra vægge</h3>
-              <p className="text-xs text-zinc-500 mb-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-1">Styrk med ekstra vægge</h3>
+              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
                 Mange tror infill giver styrke, men væggene (walls) bærer den største belastning. At øge fra 2 til 4 vægge kan gøre din del op til 2-3x stærkere!
               </p>
-              <div className="flex items-center justify-between bg-zinc-900 p-3 rounded-lg border border-zinc-800">
+              <div className="flex items-center justify-between bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
                 <div className="flex flex-col">
-                  <span className="text-sm text-zinc-300">Væg-antal (Wall count)</span>
-                  <span className={`text-xs font-medium ${wallCount === 4 ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                  <span className="text-xs text-zinc-300">Væg-antal</span>
+                  <span className={`text-[10px] font-medium ${wallCount === 4 ? 'text-emerald-500' : 'text-zinc-500'}`}>
                     {wallCount === 4 ? 'Optimeret til styrke' : 'Standard (2)'}
                   </span>
                 </div>
                 <button
                   onClick={() => setWallCount(wallCount === 2 ? 4 : 2)}
-                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                     wallCount === 4 
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                       : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700'
@@ -491,23 +491,23 @@ export default function STLTab() {
               <button 
                 onClick={handleSaveSTL}
                 disabled={isSaving || !geometry}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-3 px-4 rounded-lg font-bold transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-4 rounded-lg text-sm font-bold transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <Save className="w-5 h-5" />
+                  <Save className="w-4 h-4" />
                 )}
                 Gem Optimeret STL
               </button>
-              <p className="text-[10px] text-zinc-500 mt-2 text-center">
+              <p className="text-[10px] text-zinc-500 mt-1.5 text-center">
                 Gemmer modellen med den valgte rotation og orientering.
               </p>
             </div>
 
             <div className="pt-4 border-t border-zinc-800">
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">GCode Overlay</h3>
-              <p className="text-xs text-zinc-500 mb-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-1">GCode Overlay</h3>
+              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
                 Upload en GCode fil for at visualisere printstien ovenpå din 3D model.
               </p>
               

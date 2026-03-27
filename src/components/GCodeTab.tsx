@@ -751,10 +751,10 @@ export default function GCodeTab() {
                   <div>
                     <div className="text-sm text-zinc-400 mb-1">Ny Gns. Hastighed</div>
                     <div className="text-3xl font-mono text-emerald-400">
-                      {optimizedStats.averageSpeed.toFixed(0)} <span className="text-lg text-emerald-500/70">mm/s</span>
+                      {optimizedStats.avgSpeed.toFixed(0)} <span className="text-lg text-emerald-500/70">mm/s</span>
                     </div>
                     <div className="text-sm text-emerald-500/70 mt-1">
-                      Tidligere: {stats.averageSpeed.toFixed(0)} mm/s
+                      Tidligere: {stats.avgSpeed.toFixed(0)} mm/s
                     </div>
                   </div>
                 </div>
@@ -980,55 +980,61 @@ export default function GCodeTab() {
               {/* 3D Preview of Selected Layer */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col h-[300px] lg:h-auto relative overflow-hidden">
                 <h3 className="text-zinc-100 font-medium mb-2 absolute top-6 left-6 z-10">3D Lag Preview</h3>
-                {pathLayers && pathLayers[selectedLayer.layerNum - 1] ? (
-                  <div className="w-full h-full absolute inset-0">
-                    <Canvas camera={{ position: [0, 50, 100], fov: 45 }}>
-                      <color attach="background" args={['#18181b']} />
-                      <Stage environment={null} intensity={0.5} adjustCamera={1.2}>
-                        <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
-                          <lineSegments>
-                            <bufferGeometry>
-                              <bufferAttribute 
-                                attach="attributes-position" 
-                                count={pathLayers[selectedLayer.layerNum - 1].positions.length / 3} 
-                                array={pathLayers[selectedLayer.layerNum - 1].positions} 
-                                itemSize={3} 
-                              />
-                              <bufferAttribute 
-                                attach="attributes-color" 
-                                count={pathLayers[selectedLayer.layerNum - 1].colors.length / 3} 
-                                array={pathLayers[selectedLayer.layerNum - 1].colors} 
-                                itemSize={3} 
-                              />
-                            </bufferGeometry>
-                            <lineBasicMaterial vertexColors={true} linewidth={2} />
-                          </lineSegments>
-                          
-                          {/* Highlight corners if any */}
-                          {pathLayers[selectedLayer.layerNum - 1].cornerPositions && pathLayers[selectedLayer.layerNum - 1].cornerPositions!.length > 0 && (
-                            <points>
+                {(() => {
+                  const layerPath = pathLayers?.find(p => p.layerNum === selectedLayer.layerNum);
+                  if (!layerPath) {
+                    return (
+                      <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+                        {isProcessing ? 'Indlæser 3D data...' : '3D data for dette lag er ikke tilgængeligt.'}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="w-full h-full absolute inset-0">
+                      <Canvas camera={{ position: [0, 50, 100], fov: 45 }}>
+                        <color attach="background" args={['#18181b']} />
+                        <Stage environment={null} intensity={0.5} adjustCamera={1.2}>
+                          <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
+                            <lineSegments>
                               <bufferGeometry>
                                 <bufferAttribute 
                                   attach="attributes-position" 
-                                  count={pathLayers[selectedLayer.layerNum - 1].cornerPositions!.length / 3} 
-                                  array={pathLayers[selectedLayer.layerNum - 1].cornerPositions!} 
+                                  count={layerPath.positions.length / 3} 
+                                  array={layerPath.positions} 
+                                  itemSize={3} 
+                                />
+                                <bufferAttribute 
+                                  attach="attributes-color" 
+                                  count={layerPath.colors.length / 3} 
+                                  array={layerPath.colors} 
                                   itemSize={3} 
                                 />
                               </bufferGeometry>
-                              <pointsMaterial color="#ef4444" size={2} sizeAttenuation={false} depthTest={false} />
-                            </points>
-                          )}
-                        </group>
-                      </Stage>
-                      <OrbitControls makeDefault />
-                      <gridHelper args={[400, 40, '#27272a', '#18181b']} position={[0, -0.1, 0]} />
-                    </Canvas>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-                    {isProcessing ? 'Indlæser 3D data...' : '3D data for dette lag er ikke tilgængeligt.'}
-                  </div>
-                )}
+                              <lineBasicMaterial vertexColors={true} linewidth={2} />
+                            </lineSegments>
+                            
+                            {/* Highlight corners if any */}
+                            {layerPath.cornerPositions && layerPath.cornerPositions.length > 0 && (
+                              <points>
+                                <bufferGeometry>
+                                  <bufferAttribute 
+                                    attach="attributes-position" 
+                                    count={layerPath.cornerPositions.length / 3} 
+                                    array={layerPath.cornerPositions} 
+                                    itemSize={3} 
+                                  />
+                                </bufferGeometry>
+                                <pointsMaterial color="#ef4444" size={2} sizeAttenuation={false} depthTest={false} />
+                              </points>
+                            )}
+                          </group>
+                        </Stage>
+                        <OrbitControls makeDefault />
+                        <gridHelper args={[400, 40, '#27272a', '#18181b']} position={[0, -0.1, 0]} />
+                      </Canvas>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -1068,10 +1074,10 @@ export default function GCodeTab() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis 
-                      dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                      dataKey={xAxisMode === 'layer' ? 'layerNum' : 'z'} 
                       stroke="#52525b" 
                       tick={{ fill: '#71717a', fontSize: 12 }} 
-                      tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                      tickFormatter={(val) => xAxisMode === 'z' ? val != null ? Number(val).toFixed(1) : val : val}
                     />
                     <YAxis yAxisId="left" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                     <YAxis yAxisId="right" orientation="right" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} domain={[0, 255]} />
@@ -1120,10 +1126,10 @@ export default function GCodeTab() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                     <XAxis 
-                      dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                      dataKey={xAxisMode === 'layer' ? 'layerNum' : 'z'} 
                       stroke="#52525b" 
                       tick={{ fill: '#71717a', fontSize: 12 }} 
-                      tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                      tickFormatter={(val) => xAxisMode === 'z' ? val != null ? Number(val).toFixed(1) : val : val}
                     />
                     <YAxis yAxisId="left" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                     <YAxis yAxisId="right" orientation="right" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
@@ -1171,10 +1177,10 @@ export default function GCodeTab() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis 
-                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'z'} 
                     stroke="#52525b" 
                     tick={{ fill: '#71717a', fontSize: 12 }} 
-                    tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                    tickFormatter={(val) => xAxisMode === 'z' ? val != null ? Number(val).toFixed(1) : val : val}
                   />
                   <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                   <Tooltip 
@@ -1212,10 +1218,10 @@ export default function GCodeTab() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis 
-                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'z'} 
                     stroke="#52525b" 
                     tick={{ fill: '#71717a', fontSize: 12 }} 
-                    tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                    tickFormatter={(val) => xAxisMode === 'z' ? val != null ? Number(val).toFixed(1) : val : val}
                   />
                   <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                   <Tooltip 
@@ -1260,10 +1266,10 @@ export default function GCodeTab() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis 
-                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} 
+                    dataKey={xAxisMode === 'layer' ? 'layerNum' : 'z'} 
                     stroke="#52525b" 
                     tick={{ fill: '#71717a', fontSize: 12 }} 
-                    tickFormatter={(val) => xAxisMode === 'z' ? val.toFixed(1) : val}
+                    tickFormatter={(val) => xAxisMode === 'z' ? val != null ? Number(val).toFixed(1) : val : val}
                   />
                   <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 12 }} />
                   <Tooltip 
@@ -1278,7 +1284,7 @@ export default function GCodeTab() {
                   <ReferenceLine y={flowLimit} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: `Høj flow (${flowLimit} mm³/s)`, fill: '#f59e0b', fontSize: 10 }} />
                   <Area type="monotone" dataKey="flow" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.1} strokeWidth={2} dot={<CustomDot dataKey="flow" />} activeDot={{ r: 6 }} name="Flow" />
                   <Line type="monotone" dataKey="optFlow" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Optimeret Flow" />
-                  <Brush dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} height={30} stroke="#52525b" fill="#18181b" tickFormatter={(val) => xAxisMode === 'z' ? Number(val).toFixed(1) : val} />
+                  <Brush dataKey={xAxisMode === 'layer' ? 'layerNum' : 'z'} height={30} stroke="#52525b" fill="#18181b" tickFormatter={(val) => xAxisMode === 'z' && val != null ? Number(val).toFixed(1) : val} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

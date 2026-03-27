@@ -1,5 +1,5 @@
 {
-  "name": "3D Print Optimerer",
+  "name": "3D Print Analyse og Optimering",
   "description": "Et værktøj til at optimere STL-filer for styrke og analysere GCODE-filer for køle- og hastighedsproblemer til FDM 3D-printere.",
   "requestFramePermissions": []
 }
