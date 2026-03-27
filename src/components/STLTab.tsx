@@ -21,6 +21,7 @@ export default function STLTab() {
   // GCode Overlay States
   const [gcodeLayers, setGcodeLayers] = useState<GCodePathLayer[]>([]);
   const [showGCode, setShowGCode] = useState<boolean>(true);
+  const [showAllLayers, setShowAllLayers] = useState<boolean>(false);
   const [currentLayerIndex, setCurrentLayerIndex] = useState<number>(0);
   const [gcodeUploadStatus, setGcodeUploadStatus] = useState<'idle' | 'reading' | 'parsing' | 'success' | 'error'>('idle');
   const [gcodeErrorMessage, setGcodeErrorMessage] = useState<string>('');
@@ -77,12 +78,16 @@ export default function STLTab() {
   }, [gcodeLayers]);
 
   useEffect(() => {
-    if (geometryRef.current && layerOffsets.length > 0 && currentLayerIndex >= 0) {
-      const start = layerOffsets[currentLayerIndex] / 3;
-      const count = (layerOffsets[currentLayerIndex + 1] - layerOffsets[currentLayerIndex]) / 3;
-      geometryRef.current.setDrawRange(start, count);
+    if (geometryRef.current && layerOffsets.length > 0) {
+      if (showAllLayers) {
+        geometryRef.current.setDrawRange(0, layerOffsets[layerOffsets.length - 1]);
+      } else if (currentLayerIndex >= 0) {
+        const start = layerOffsets[currentLayerIndex] / 3;
+        const count = (layerOffsets[currentLayerIndex + 1] - layerOffsets[currentLayerIndex]) / 3;
+        geometryRef.current.setDrawRange(start, count);
+      }
     }
-  }, [currentLayerIndex, layerOffsets, showGCode]);
+  }, [currentLayerIndex, layerOffsets, showGCode, showAllLayers]);
 
   const resetCamera = () => {
     if (controlsRef.current) {
@@ -557,29 +562,54 @@ export default function STLTab() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-zinc-300">Vis GCode sti</span>
-                    <button 
-                      onClick={() => setShowGCode(!showGCode)}
-                      className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                    >
-                      {showGCode ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setShowAllLayers(!showAllLayers)}
+                        className={`px-2 py-1 text-xs rounded-md transition-colors ${showAllLayers ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                        title="Vis alle lag på én gang"
+                      >
+                        Alle lag
+                      </button>
+                      <button 
+                        onClick={() => setShowGCode(!showGCode)}
+                        className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                      >
+                        {showGCode ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   
                   {showGCode && (
                     <div className="space-y-2">
-                      <div className="flex justify-between text-xs text-zinc-400">
-                        <span>Lag 1</span>
-                        <span className="font-medium text-emerald-400">Lag {currentLayerIndex + 1} / {gcodeLayers.length}</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max={gcodeLayers.length - 1} 
-                        value={currentLayerIndex} 
-                        onChange={(e) => setCurrentLayerIndex(parseInt(e.target.value))}
-                        className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                      />
+                      {!showAllLayers && (
+                        <>
+                          <div className="flex justify-between text-xs text-zinc-400">
+                            <span>Lag 1</span>
+                            <span className="font-medium text-emerald-400">Lag {currentLayerIndex + 1} / {gcodeLayers.length}</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max={gcodeLayers.length - 1} 
+                            value={currentLayerIndex} 
+                            onChange={(e) => setCurrentLayerIndex(parseInt(e.target.value))}
+                            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </>
+                      )}
                       
+                      {/* Speed Legend */}
+                      <div className="mt-3 pt-3 border-t border-zinc-800">
+                        <span className="text-xs text-zinc-400 mb-1.5 block">Hastighed (mm/s)</span>
+                        <div className="h-1.5 w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 via-green-500 via-yellow-500 to-red-500"></div>
+                        <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
+                          <span>0</span>
+                          <span>60</span>
+                          <span>120</span>
+                          <span>250+</span>
+                        </div>
+                      </div>
+
                       <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-zinc-800">
                         <div className="flex items-center gap-2 text-[10px] text-zinc-400">
                           <div className="w-2 h-2 rounded-full bg-red-500"></div>
@@ -679,11 +709,11 @@ export default function STLTab() {
                           itemSize={3} 
                         />
                       </bufferGeometry>
-                      <lineBasicMaterial vertexColors={true} linewidth={1} opacity={0.8} transparent />
+                      <lineBasicMaterial vertexColors={true} linewidth={1} opacity={0.8} transparent depthTest={false} />
                     </lineSegments>
                     
                     {/* Visual Feedback for Warnings */}
-                    {gcodeLayers[currentLayerIndex]?.cornerPositions && gcodeLayers[currentLayerIndex].cornerPositions!.length > 0 && (
+                    {!showAllLayers && gcodeLayers[currentLayerIndex]?.cornerPositions && gcodeLayers[currentLayerIndex].cornerPositions!.length > 0 && (
                       <points>
                         <bufferGeometry>
                           <bufferAttribute 
@@ -693,11 +723,11 @@ export default function STLTab() {
                             itemSize={3} 
                           />
                         </bufferGeometry>
-                        <pointsMaterial color="#ef4444" size={2} sizeAttenuation={false} />
+                        <pointsMaterial color="#ef4444" size={2} sizeAttenuation={false} depthTest={false} />
                       </points>
                     )}
                     
-                    {gcodeLayers[currentLayerIndex]?.coolingWarning && (
+                    {!showAllLayers && gcodeLayers[currentLayerIndex]?.coolingWarning && (
                       <Html position={[gcodeCenter.x, gcodeCenter.y, gcodeLayers[currentLayerIndex].z]} center zIndexRange={[100, 0]}>
                         <div className="bg-blue-500/90 text-white text-[10px] px-2 py-1 rounded-full whitespace-nowrap border border-blue-400 backdrop-blur-sm flex items-center gap-1 shadow-lg pointer-events-none">
                           <Snowflake className="w-3 h-3" />

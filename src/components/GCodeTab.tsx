@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Upload, AlertTriangle, Clock, Zap, Wind, CornerUpRight, Download, FileJson, Ruler, Move, Box, Loader2, File } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Upload, AlertTriangle, Clock, Zap, Wind, CornerUpRight, Download, FileJson, Ruler, Move, Box, Loader2, File as FileIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, ComposedChart, Bar, Legend, Brush } from 'recharts';
-import { parseGCode, LayerStat, optimizeGCode } from '../utils/gcodeParser';
+import { parseGCode, LayerStat, optimizeGCode, OptimizationLog } from '../utils/gcodeParser';
 
 interface GCodeStats {
   totalTime: number;
@@ -21,6 +21,7 @@ interface GCodeStats {
 
 export default function GCodeTab() {
   const [layers, setLayers] = useState<LayerStat[]>([]);
+  const [optimizedLayers, setOptimizedLayers] = useState<LayerStat[] | null>(null);
   const [progress, setProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [stats, setStats] = useState<GCodeStats>({ 
@@ -28,6 +29,7 @@ export default function GCodeTab() {
     coolingWarnings: 0, cornerWarnings: 0, totalFilament: 0, totalPrintTime: 0, 
     totalTravelTime: 0, layerHeightConsistency: 0, featureTimes: {} 
   });
+  const [optimizedStats, setOptimizedStats] = useState<GCodeStats | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [compareStats, setCompareStats] = useState<GCodeStats | null>(null);
   const [compareFileName, setCompareFileName] = useState<string>('');
@@ -40,6 +42,13 @@ export default function GCodeTab() {
   const [fixCooling, setFixCooling] = useState(true);
   const [fixCorners, setFixCorners] = useState(true);
   const [fixFlow, setFixFlow] = useState(true);
+  
+  // Advanced Thresholds
+  const [coolingThreshold, setCoolingThreshold] = useState<number>(10);
+  const [speedReductionPercent, setSpeedReductionPercent] = useState<number>(80);
+  const [flowLimit, setFlowLimit] = useState<number>(15);
+
+  const [optimizationLogs, setOptimizationLogs] = useState<OptimizationLog[] | null>(null);
 
   const validateGCodeFile = async (file: File): Promise<{ isValid: boolean; error?: string }> => {
     // Tjek filendelse først
@@ -83,20 +92,67 @@ export default function GCodeTab() {
   const [isDragging, setIsDragging] = useState(false);
   const [flowMultiplier, setFlowMultiplier] = useState<number>(100);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLLabelElement>) => {
-    let file: File | undefined;
-    if ('dataTransfer' in e) {
-      file = e.dataTransfer.files?.[0];
-    } else {
-      file = e.target.files?.[0];
-    }
-    if (!file) return;
+  const calculateStats = (parsedLayers: LayerStat[], parseResult: any): GCodeStats => {
+    let totalTime = 0;
+    let maxSpeed = 0;
+    let totalSpeed = 0;
+    let maxFlow = 0;
+    let coolingWarnings = 0;
+    let cornerWarnings = 0;
+    let totalFilament = 0;
+    let totalPrintTime = 0;
+    let totalTravelTime = 0;
+    const featureTimes: Record<string, number> = {};
+    const layerHeights: number[] = [];
 
-    if (file.size > 150 * 1024 * 1024) {
-      setError('Filen er for stor (max 150MB). For at undgå at browseren crasher, er denne grænse indført.');
-      return;
+    parsedLayers.forEach(l => {
+      totalTime += l.time;
+      totalPrintTime += l.printTime;
+      totalTravelTime += l.travelTime;
+      totalFilament += l.filamentUsed;
+      
+      if (l.featureTimes) {
+        Object.entries(l.featureTimes).forEach(([feature, time]) => {
+          featureTimes[feature] = (featureTimes[feature] || 0) + Number(time);
+        });
+      }
+      
+      if (l.maxSpeed > maxSpeed) maxSpeed = l.maxSpeed;
+      totalSpeed += l.avgSpeed;
+      if (l.flow > maxFlow) maxFlow = l.flow;
+      if (l.coolingWarning) coolingWarnings++;
+      if (l.sharpCornerHighSpeedCount > 10) cornerWarnings++;
+      
+      if (l.layerHeight > 0 && l.layerHeight < 1) {
+          layerHeights.push(l.layerHeight);
+      }
+    });
+    
+    let layerHeightConsistency = 0;
+    if (layerHeights.length > 0) {
+        const meanHeight = layerHeights.reduce((a, b) => a + b, 0) / layerHeights.length;
+        const variance = layerHeights.reduce((a, b) => a + Math.pow(b - meanHeight, 2), 0) / layerHeights.length;
+        layerHeightConsistency = Math.sqrt(variance);
     }
 
+    return { 
+      totalTime, 
+      maxSpeed, 
+      avgSpeed: parsedLayers.length > 0 ? totalSpeed / parsedLayers.length : 0,
+      layerCount: parsedLayers.length,
+      maxFlow,
+      coolingWarnings, 
+      cornerWarnings,
+      totalFilament,
+      totalPrintTime,
+      totalTravelTime,
+      layerHeightConsistency,
+      featureTimes,
+      boundingBox: Array.isArray(parseResult) ? undefined : parseResult.boundingBox
+    };
+  };
+
+  const processGCodeFile = async (file: File) => {
     setError(null);
     setFileName(file.name);
     setOriginalFile(file);
@@ -116,65 +172,9 @@ export default function GCodeTab() {
       setLayers(parsedLayers);
       setVisibleLayersCount(100);
       
-      let totalTime = 0;
-      let maxSpeed = 0;
-      let totalSpeed = 0;
-      let maxFlow = 0;
-      let coolingWarnings = 0;
-      let cornerWarnings = 0;
-      let totalFilament = 0;
-      let totalPrintTime = 0;
-      let totalTravelTime = 0;
-      const featureTimes: Record<string, number> = {};
-      
-      const layerHeights: number[] = [];
-
-      parsedLayers.forEach(l => {
-        totalTime += l.time;
-        totalPrintTime += l.printTime;
-        totalTravelTime += l.travelTime;
-        totalFilament += l.filamentUsed;
-        
-        if (l.featureTimes) {
-          Object.entries(l.featureTimes).forEach(([feature, time]) => {
-            featureTimes[feature] = (featureTimes[feature] || 0) + Number(time);
-          });
-        }
-        
-        if (l.maxSpeed > maxSpeed) maxSpeed = l.maxSpeed;
-        totalSpeed += l.avgSpeed;
-        if (l.flow > maxFlow) maxFlow = l.flow;
-        if (l.coolingWarning) coolingWarnings++;
-        if (l.sharpCornerHighSpeedCount > 10) cornerWarnings++; // Arbitrary threshold for a "bad" layer
-        
-        if (l.layerHeight > 0 && l.layerHeight < 1) { // Filter out weird anomalous layer heights
-            layerHeights.push(l.layerHeight);
-        }
-      });
-      
-      // Calculate standard deviation of layer heights
-      let layerHeightConsistency = 0;
-      if (layerHeights.length > 0) {
-          const meanHeight = layerHeights.reduce((a, b) => a + b, 0) / layerHeights.length;
-          const variance = layerHeights.reduce((a, b) => a + Math.pow(b - meanHeight, 2), 0) / layerHeights.length;
-          layerHeightConsistency = Math.sqrt(variance);
-      }
-
-      setStats({ 
-        totalTime, 
-        maxSpeed, 
-        avgSpeed: parsedLayers.length > 0 ? totalSpeed / parsedLayers.length : 0,
-        layerCount: parsedLayers.length,
-        maxFlow,
-        coolingWarnings, 
-        cornerWarnings,
-        totalFilament,
-        totalPrintTime,
-        totalTravelTime,
-        layerHeightConsistency,
-        featureTimes,
-        boundingBox: Array.isArray(parseResult) ? undefined : parseResult.boundingBox
-      });
+      setStats(calculateStats(parsedLayers, parseResult));
+      setOptimizedLayers(null);
+      setOptimizedStats(null);
     } catch (err) {
       console.error("Error parsing GCODE:", err);
       setError("Der opstod en fejl under læsning af GCODE filen: " + (err instanceof Error ? err.message : String(err)));
@@ -183,35 +183,82 @@ export default function GCodeTab() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLLabelElement>) => {
+    let file: File | undefined;
+    if ('dataTransfer' in e) {
+      file = e.dataTransfer.files?.[0];
+    } else {
+      file = e.target.files?.[0];
+    }
+    if (!file) return;
+
+    if (file.size > 150 * 1024 * 1024) {
+      setError('Filen er for stor (max 150MB). For at undgå at browseren crasher, er denne grænse indført.');
+      return;
+    }
+
+    setOptimizationLogs(null);
+    await processGCodeFile(file);
+  };
+
   const handleOptimizeAndDownload = async () => {
     if (!originalFile || layers.length === 0) return;
     
     setIsOptimizing(true);
     try {
-      const optimizedBlob = await optimizeGCode(originalFile, layers, { 
+      const { blob: optimizedBlob, logs } = await optimizeGCode(originalFile, layers, { 
         flowMultiplier,
         fixCooling,
         fixCorners,
-        fixFlow
+        fixFlow,
+        coolingThreshold,
+        speedReductionPercent,
+        flowLimit
       });
+      
+      setOptimizationLogs(logs);
+
+      const newFileName = fileName ? fileName.replace('.gcode', '-optimeret.gcode') : 'optimeret.gcode';
       const url = URL.createObjectURL(optimizedBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName ? fileName.replace('.gcode', '-optimeret.gcode') : 'optimeret.gcode';
+      a.download = newFileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Error optimizing GCODE:", err);
-      setError("Der opstod en fejl under optimering af GCODE filen.");
-    } finally {
+
+      // Auto-update UI with the new optimized file
+      // In some environments, File constructor might not be available or behave differently.
+      // We can create a mock File object that satisfies the requirements for processGCodeFile.
+      let optimizedFile: File;
+      try {
+        optimizedFile = new File([optimizedBlob], newFileName, { type: 'text/plain' });
+      } catch (e) {
+        // Fallback if File constructor fails (e.g., in some older browsers or specific contexts)
+        optimizedFile = optimizedBlob as any;
+        (optimizedFile as any).name = newFileName;
+        (optimizedFile as any).lastModified = Date.now();
+      }
+      
+      // Parse optimized file and store in optimized state instead of overwriting original
+      const parseResult = await parseGCode(optimizedFile, () => {}); // silent progress
+      const optLayers = Array.isArray(parseResult) ? parseResult : parseResult.layers;
+      setOptimizedLayers(optLayers);
+      setOptimizedStats(calculateStats(optLayers, parseResult));
+      
+      } catch (err) {
+        console.error("Error optimizing GCODE:", err);
+        setError(`Der opstod en fejl under optimering af GCODE filen: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
       setIsOptimizing(false);
     }
   };
 
   const handleReset = () => {
     setLayers([]);
+    setOptimizedLayers(null);
+    setOptimizedStats(null);
     setStats({
       totalTime: 0,
       maxSpeed: 0,
@@ -232,6 +279,7 @@ export default function GCodeTab() {
     setProgress(0);
     setCompareStats(null);
     setCompareFileName('');
+    setOptimizationLogs(null);
   };
 
   const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,6 +287,7 @@ export default function GCodeTab() {
     if (!file) return;
 
     setError(null);
+    setOptimizationLogs(null);
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -284,6 +333,10 @@ export default function GCodeTab() {
   const CustomDot = (props: any) => {
     const { cx, cy, payload, dataKey } = props;
     
+    if (typeof cx !== 'number' || typeof cy !== 'number' || isNaN(cx) || isNaN(cy)) {
+      return null;
+    }
+
     // Cooling Warning Marker (Yellow Triangle/Wind)
     if (dataKey === 'time' && payload.coolingWarning) {
       return (
@@ -365,6 +418,21 @@ export default function GCodeTab() {
     return `${m}m`;
   };
 
+  const combinedChartData = useMemo(() => {
+    if (!optimizedLayers) return layers;
+    return layers.map((layer, index) => {
+      const optLayer = optimizedLayers[index];
+      return {
+        ...layer,
+        optAvgSpeed: optLayer?.avgSpeed,
+        optFlow: optLayer?.flow,
+        optTime: optLayer?.time,
+        optPrintTime: optLayer?.printTime,
+        optTravelTime: optLayer?.travelTime,
+      };
+    });
+  }, [layers, optimizedLayers]);
+
   return (
     <div className="flex flex-col h-full gap-6">
       {/* Header & Upload */}
@@ -439,7 +507,7 @@ export default function GCodeTab() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-zinc-900 border border-zinc-800 rounded-xl p-5 gap-4">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
-                  <File className="w-6 h-6" />
+                  <FileIcon className="w-6 h-6" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Analyse Resultater</span>
@@ -501,9 +569,9 @@ export default function GCodeTab() {
                   <span className="text-sm font-medium">Estimeret Tid</span>
                 </div>
                 <div className="text-3xl font-mono text-zinc-100">{formatTime(stats.totalTime)}</div>
-                {compareStats && (
-                  <div className={`text-sm font-medium mt-1 ${stats.totalTime < compareStats.totalTime ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {stats.totalTime < compareStats.totalTime ? '-' : '+'}{formatTime(Math.abs(stats.totalTime - compareStats.totalTime))} vs {compareFileName}
+                {(optimizedStats || compareStats) && (
+                  <div className={`text-sm font-medium mt-1 ${stats.totalTime < (optimizedStats || compareStats)!.totalTime ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.totalTime < (optimizedStats || compareStats)!.totalTime ? '-' : '+'}{formatTime(Math.abs(stats.totalTime - (optimizedStats || compareStats)!.totalTime))} vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
                 <div className="text-xs text-zinc-500 mt-2">
@@ -519,9 +587,9 @@ export default function GCodeTab() {
                 <div className="text-3xl font-mono text-zinc-100">
                   {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-zinc-500">g</span>
                 </div>
-                {compareStats && (
-                  <div className={`text-sm font-medium mt-1 ${stats.totalFilament < compareStats.totalFilament ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {stats.totalFilament < compareStats.totalFilament ? '-' : '+'}{Math.abs((stats.totalFilament - compareStats.totalFilament) * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)}g vs {compareFileName}
+                {(optimizedStats || compareStats) && (
+                  <div className={`text-sm font-medium mt-1 ${stats.totalFilament < (optimizedStats || compareStats)!.totalFilament ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.totalFilament < (optimizedStats || compareStats)!.totalFilament ? '-' : '+'}{Math.abs((stats.totalFilament - (optimizedStats || compareStats)!.totalFilament) * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)}g vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
                 <div className="text-sm font-medium text-emerald-400 mt-1">
@@ -553,9 +621,9 @@ export default function GCodeTab() {
                 <div className="text-3xl font-mono text-zinc-100">
                   {((stats.totalPrintTime / stats.totalTime) * 100).toFixed(0)}<span className="text-lg text-zinc-500">%</span>
                 </div>
-                {compareStats && (
-                  <div className={`text-sm font-medium mt-1 ${((stats.totalPrintTime / stats.totalTime) * 100) > ((compareStats.totalPrintTime / compareStats.totalTime) * 100) ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {((stats.totalPrintTime / stats.totalTime) * 100) > ((compareStats.totalPrintTime / compareStats.totalTime) * 100) ? '+' : ''}{(((stats.totalPrintTime / stats.totalTime) * 100) - ((compareStats.totalPrintTime / compareStats.totalTime) * 100)).toFixed(1)}% vs {compareFileName}
+                {(optimizedStats || compareStats) && (
+                  <div className={`text-sm font-medium mt-1 ${((stats.totalPrintTime / stats.totalTime) * 100) > (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100) ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {((stats.totalPrintTime / stats.totalTime) * 100) > (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100) ? '+' : ''}{(((stats.totalPrintTime / stats.totalTime) * 100) - (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100)).toFixed(1)}% vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
                 <div className="text-xs text-zinc-500 mt-2">
@@ -569,9 +637,9 @@ export default function GCodeTab() {
                   <span className="text-sm font-medium">Gns. Hastighed</span>
                 </div>
                 <div className="text-3xl font-mono text-zinc-100">{stats.avgSpeed.toFixed(0)} <span className="text-lg text-zinc-500">mm/s</span></div>
-                {compareStats && (
-                  <div className={`text-sm font-medium mt-1 ${stats.avgSpeed > compareStats.avgSpeed ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {stats.avgSpeed > compareStats.avgSpeed ? '+' : ''}{(stats.avgSpeed - compareStats.avgSpeed).toFixed(0)} mm/s vs {compareFileName}
+                {(optimizedStats || compareStats) && (
+                  <div className={`text-sm font-medium mt-1 ${stats.avgSpeed > (optimizedStats || compareStats)!.avgSpeed ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.avgSpeed > (optimizedStats || compareStats)!.avgSpeed ? '+' : ''}{(stats.avgSpeed - (optimizedStats || compareStats)!.avgSpeed).toFixed(0)} mm/s vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
                 <div className="text-xs text-zinc-500 mt-2">
@@ -736,6 +804,35 @@ export default function GCodeTab() {
                 )}
               </div>
             )}
+            
+            {/* G-Code Viewer */}
+            {optimizationLogs && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col mb-6">
+                <h3 className="text-zinc-100 font-medium mb-2 flex items-center gap-2">
+                  <FileJson className="w-5 h-5 text-emerald-400" />
+                  Indsatte G-Code Kommandoer
+                </h3>
+                <p className="text-sm text-zinc-400 mb-4">
+                  Her kan du se præcis hvilke kommandoer programmet har indsat i din G-kode for at løse problemerne.
+                </p>
+                <div className="bg-[#0a0a0a] rounded-lg p-4 overflow-y-auto max-h-80 font-mono text-xs text-zinc-300 border border-zinc-800">
+                  {optimizationLogs.slice(0, 500).map((log, index) => (
+                    <div key={index} className="flex gap-4 hover:bg-zinc-900/50 px-2 py-1 rounded">
+                      <span className="text-zinc-600 select-none w-12 text-right">{log.lineNum}</span>
+                      <span className="text-emerald-400">{log.message}</span>
+                    </div>
+                  ))}
+                  {optimizationLogs.length > 500 && (
+                    <div className="text-zinc-500 italic text-center py-4">
+                      ... og {optimizationLogs.length - 500} flere optimeringer (skjult for at forbedre ydeevnen)
+                    </div>
+                  )}
+                  {optimizationLogs.length === 0 && (
+                    <div className="text-zinc-500 italic text-center py-4">Ingen optimeringer blev indsat.</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -743,6 +840,13 @@ export default function GCodeTab() {
       {/* Charts */}
       {layers.length > 0 && (
         <div className="flex flex-col gap-6 flex-1">
+          <div className="flex items-center gap-3 pb-2 border-b border-zinc-800/50">
+            <FileIcon className="w-5 h-5 text-emerald-500" />
+            <h2 className="text-lg font-medium text-zinc-200 truncate" title={fileName}>
+              Grafer for: <span className="text-zinc-400 font-mono text-sm ml-1">{fileName}</span>
+            </h2>
+          </div>
+
           {selectedLayer && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between">
@@ -819,7 +923,7 @@ export default function GCodeTab() {
               <div className="flex-1 w-full min-h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart 
-                    data={layers} 
+                    data={combinedChartData} 
                     syncId="gcodeCharts" 
                     margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
                     onClick={(e: any) => {
@@ -840,7 +944,8 @@ export default function GCodeTab() {
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                       labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                      formatter={(value: number, name: string, props: any) => {
+                      formatter={(value: number | undefined, name: string, props: any) => {
+                        if (value === undefined || value === null) return ['-', name];
                         const { payload } = props;
                         if (name === 'time') {
                           const label = `${value.toFixed(1)}s`;
@@ -848,14 +953,16 @@ export default function GCodeTab() {
                             ? [`${label} (⚠️ Køle-advarsel)`, 'Lag-tid'] 
                             : [label, 'Lag-tid'];
                         }
+                        if (name === 'optTime') return [`${value.toFixed(1)}s`, 'Optimeret Lag-tid'];
                         if (name === 'avgFanSpeed') return [`${Math.round((value/255)*100)}%`, 'Blæser'];
                         return [value, name];
                       }}
                       labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                     />
                     <ReferenceLine yAxisId="left" y={15} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Kritisk kort tid', fill: '#f59e0b', fontSize: 10 }} />
-                    <Line yAxisId="left" type="monotone" dataKey="time" stroke="#10b981" strokeWidth={2} dot={<CustomDot dataKey="time" />} activeDot={{ r: 6 }} />
-                    <Line yAxisId="right" type="stepAfter" dataKey="avgFanSpeed" stroke="#3b82f6" strokeWidth={2} dot={false} opacity={0.5} />
+                    <Line yAxisId="left" type="monotone" dataKey="time" stroke="#10b981" strokeWidth={2} dot={<CustomDot dataKey="time" />} activeDot={{ r: 6 }} name="Lag-tid" />
+                    <Line yAxisId="left" type="monotone" dataKey="optTime" stroke="#34d399" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Optimeret Lag-tid" />
+                    <Line yAxisId="right" type="stepAfter" dataKey="avgFanSpeed" stroke="#3b82f6" strokeWidth={2} dot={false} opacity={0.5} name="Blæser" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -868,7 +975,7 @@ export default function GCodeTab() {
               <div className="flex-1 w-full min-h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart 
-                    data={layers} 
+                    data={combinedChartData} 
                     syncId="gcodeCharts" 
                     margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
                     onClick={(e: any) => {
@@ -889,9 +996,11 @@ export default function GCodeTab() {
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                       labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                      formatter={(value: number, name: string, props: any) => {
+                      formatter={(value: number | undefined, name: string, props: any) => {
+                        if (value === undefined || value === null) return ['-', name];
                         const { payload } = props;
                         if (name === 'avgSpeed') return [`${value.toFixed(0)} mm/s`, 'Gns. Hastighed'];
+                        if (name === 'optAvgSpeed') return [`${value.toFixed(0)} mm/s`, 'Optimeret Hastighed'];
                         if (name === 'sharpCornerHighSpeedCount') {
                           return payload.sharpCornerHighSpeedCount > 10
                             ? [`${value} (⚠️ Hurtige hjørner)`, 'Hurtige Hjørner']
@@ -901,8 +1010,9 @@ export default function GCodeTab() {
                       }}
                       labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                     />
-                  <Area yAxisId="left" type="monotone" dataKey="avgSpeed" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} />
-                  <Area yAxisId="right" type="monotone" dataKey="sharpCornerHighSpeedCount" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} />
+                  <Area yAxisId="left" type="monotone" dataKey="avgSpeed" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} name="Gns. Hastighed" />
+                  <Line yAxisId="left" type="monotone" dataKey="optAvgSpeed" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Optimeret Hastighed" />
+                  <Area yAxisId="right" type="monotone" dataKey="sharpCornerHighSpeedCount" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} name="Hurtige Hjørner" />
                   <Line yAxisId="right" type="monotone" dataKey="sharpCornerHighSpeedCount" stroke="transparent" dot={<CustomDot dataKey="sharpCornerHighSpeedCount" />} activeDot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -916,7 +1026,7 @@ export default function GCodeTab() {
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart 
-                  data={layers} 
+                  data={combinedChartData} 
                   syncId="gcodeCharts" 
                   margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
                   onClick={(e: any) => {
@@ -936,11 +1046,15 @@ export default function GCodeTab() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                    formatter={(value: number) => [`${value.toFixed(0)} mm/s`, 'Gns. Hastighed']}
+                    formatter={(value: number | undefined, name: string) => {
+                      if (value === undefined || value === null) return ['-', name === 'optAvgSpeed' ? 'Optimeret Hastighed' : 'Gns. Hastighed'];
+                      return [`${value.toFixed(0)} mm/s`, name === 'optAvgSpeed' ? 'Optimeret Hastighed' : 'Gns. Hastighed'];
+                    }}
                     labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                   />
                   <ReferenceLine y={40} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Kritisk grænse (40 mm/s)', fill: '#ef4444', fontSize: 10 }} />
-                  <Line type="monotone" dataKey="avgSpeed" stroke="#0ea5e9" strokeWidth={2} dot={<CustomDot dataKey="avgSpeed" />} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="avgSpeed" stroke="#0ea5e9" strokeWidth={2} dot={<CustomDot dataKey="avgSpeed" />} activeDot={{ r: 6 }} name="Gns. Hastighed" />
+                  <Line type="monotone" dataKey="optAvgSpeed" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Optimeret Hastighed" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -953,7 +1067,7 @@ export default function GCodeTab() {
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart 
-                  data={layers} 
+                  data={combinedChartData} 
                   syncId="gcodeCharts" 
                   margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
                   onClick={(e: any) => {
@@ -973,15 +1087,22 @@ export default function GCodeTab() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                    formatter={(value: number, name: string) => [
-                      `${value.toFixed(1)}s`, 
-                      name === 'printTime' ? 'Print Tid' : 'Rejse Tid'
-                    ]}
+                    formatter={(value: number | undefined, name: string) => {
+                      if (value === undefined || value === null) return ['-', name];
+                      let label = name;
+                      if (name === 'printTime') label = 'Print Tid';
+                      if (name === 'travelTime') label = 'Rejse Tid';
+                      if (name === 'optPrintTime') label = 'Optimeret Print Tid';
+                      if (name === 'optTravelTime') label = 'Optimeret Rejse Tid';
+                      return [`${value.toFixed(1)}s`, label];
+                    }}
                     labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                   />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
                   <Bar dataKey="printTime" name="Print Tid" stackId="a" fill="#10b981" />
                   <Bar dataKey="travelTime" name="Rejse Tid" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="optPrintTime" name="Optimeret Print Tid" stroke="#34d399" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="optTravelTime" name="Optimeret Rejse Tid" stroke="#fbbf24" strokeDasharray="5 5" strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -990,11 +1111,11 @@ export default function GCodeTab() {
           {/* Filament Flow Chart */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
             <h3 className="text-zinc-100 font-medium mb-1">Filament Flow (mm³/s)</h3>
-            <p className="text-xs text-zinc-500 mb-6">Volumetrisk flow per lag. Markering ved høj flow (15 mm³/s).</p>
+            <p className="text-xs text-zinc-500 mb-6">Volumetrisk flow per lag. Markering ved høj flow ({flowLimit} mm³/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart 
-                  data={layers} 
+                <ComposedChart 
+                  data={combinedChartData} 
                   syncId="gcodeCharts" 
                   margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
                   onClick={(e: any) => {
@@ -1014,13 +1135,17 @@ export default function GCodeTab() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5' }}
                     labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                    formatter={(value: number) => [`${value.toFixed(2)} mm³/s`, 'Flow']}
+                    formatter={(value: number | undefined, name: string) => {
+                      if (value === undefined || value === null) return ['-', name === 'optFlow' ? 'Optimeret Flow' : 'Flow'];
+                      return [`${value.toFixed(2)} mm³/s`, name === 'optFlow' ? 'Optimeret Flow' : 'Flow'];
+                    }}
                     labelFormatter={(label) => xAxisMode === 'layer' ? `Lag ${label}` : `Z: ${Number(label).toFixed(2)} mm`}
                   />
-                  <ReferenceLine y={15} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Høj flow (15 mm³/s)', fill: '#f59e0b', fontSize: 10 }} />
-                  <Area type="monotone" dataKey="flow" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.1} strokeWidth={2} dot={<CustomDot dataKey="flow" />} activeDot={{ r: 6 }} />
+                  <ReferenceLine y={flowLimit} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: `Høj flow (${flowLimit} mm³/s)`, fill: '#f59e0b', fontSize: 10 }} />
+                  <Area type="monotone" dataKey="flow" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.1} strokeWidth={2} dot={<CustomDot dataKey="flow" />} activeDot={{ r: 6 }} name="Flow" />
+                  <Line type="monotone" dataKey="optFlow" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Optimeret Flow" />
                   <Brush dataKey={xAxisMode === 'layer' ? 'layerNum' : 'zHeight'} height={30} stroke="#52525b" fill="#18181b" tickFormatter={(val) => xAxisMode === 'z' ? Number(val).toFixed(1) : val} />
-                </AreaChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>

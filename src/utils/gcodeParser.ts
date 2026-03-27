@@ -108,12 +108,19 @@ export interface OptimizeOptions {
   fixCooling?: boolean;
   fixCorners?: boolean;
   fixFlow?: boolean;
+  coolingThreshold?: number;
+  speedReductionPercent?: number;
+  flowLimit?: number;
 }
 
-export async function optimizeGCode(file: File, layerStats: LayerStat[], options?: OptimizeOptions): Promise<Blob> {
-  const text = await file.text();
-  const lines = text.split('\n');
-  const optimizedLines: string[] = [];
+export interface OptimizationLog {
+  lineNum: number;
+  message: string;
+}
+
+export async function optimizeGCode(file: File, layerStats: LayerStat[], options?: OptimizeOptions): Promise<{ blob: Blob, logs: OptimizationLog[] }> {
+  const logs: OptimizationLog[] = [];
+  const blobParts: string[] = [];
   
   let highestZ = -999;
   let currentZ = -999;
@@ -121,15 +128,25 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
   let currentSpeedFactor = 100;
   let currentAccel = 1000;
   let optimizationsCount = 0;
+  let lineNum = 0;
   
-  optimizedLines.push("; ===============================================");
-  optimizedLines.push("; --- OPTIMERET AF 3D PRINT OPTIMERER ---");
-  optimizedLines.push("; Dato: " + new Date().toLocaleString());
+  let isCoolingForced = false;
+  let isSpeedForced = false;
+  let isAccelForced = false;
+  
+  const header: string[] = [];
+  header.push("; ===============================================");
+  header.push("; --- OPTIMERET AF 3D PRINT OPTIMERER ---");
+  header.push("; Dato: " + new Date().toLocaleString());
   if (options?.flowMultiplier && options.flowMultiplier !== 100) {
-    optimizedLines.push(`; Flow Multiplier: ${options.flowMultiplier}%`);
-    optimizedLines.push(`M221 S${options.flowMultiplier} ; >>> OPTIMERET: Global flow rate sat til ${options.flowMultiplier}%`);
+    header.push(`; Flow Multiplier: ${options.flowMultiplier}%`);
+    const msg = `M221 S${options.flowMultiplier} ; >>> OPTIMERET: Global flow rate sat til ${options.flowMultiplier}%`;
+    header.push(msg);
+    logs.push({ lineNum: 0, message: msg });
   }
-  optimizedLines.push("; ===============================================");
+  header.push("; ===============================================");
+  header.push("");
+  blobParts.push(header.join('\n') + '\n');
 
   const applyLayerOptimizations = (zHeight: number, output: string[]) => {
     // Find the stats for the layer that matches this Z height (with a small tolerance)
@@ -137,9 +154,14 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
     
     if (stats && zHeight > lastOptimizedZ + 0.01) {
       lastOptimizedZ = zHeight;
-      const needsCoolingFix = options?.fixCooling && stats.coolingWarning;
+      
+      const coolingThresh = options?.coolingThreshold ?? 10;
+      const speedReduc = options?.speedReductionPercent ?? 80;
+      const flowLim = options?.flowLimit ?? 15;
+
+      const needsCoolingFix = options?.fixCooling && (stats.coolingWarning || stats.time < coolingThresh);
       const needsCornerFix = options?.fixCorners && stats.sharpCornerHighSpeedCount > 10;
-      const needsFlowFix = options?.fixFlow && stats.flow > 15;
+      const needsFlowFix = options?.fixFlow && stats.flow > flowLim;
 
       let targetSpeedFactor = 100;
       let targetAccel = 1000;
@@ -147,65 +169,177 @@ export async function optimizeGCode(file: File, layerStats: LayerStat[], options
 
       if (needsCoolingFix) {
         needsCooling = true;
-        if (stats.time < 10) {
-          targetSpeedFactor = Math.min(targetSpeedFactor, Math.max(30, Math.round((stats.time / 15) * 100)));
+        isCoolingForced = true;
+        if (stats.time < coolingThresh) {
+          targetSpeedFactor = Math.min(targetSpeedFactor, Math.max(30, Math.round((stats.time / (coolingThresh * 1.5)) * 100)));
         }
+      } else {
+        isCoolingForced = false;
       }
 
       if (needsCornerFix) {
-        targetSpeedFactor = Math.min(targetSpeedFactor, 80);
+        targetSpeedFactor = Math.min(targetSpeedFactor, speedReduc);
         targetAccel = Math.min(targetAccel, 500);
       }
 
       if (needsFlowFix) {
-        targetSpeedFactor = Math.min(targetSpeedFactor, Math.max(10, Math.round((15 / stats.flow) * 100)));
+        targetSpeedFactor = Math.min(targetSpeedFactor, Math.max(10, Math.round((flowLim / stats.flow) * 100)));
       }
 
       if (needsCooling) {
-        output.push(`M106 S255 ; >>> OPTIMERET: Maksimal køling pga. kort lagtid (Z: ${zHeight.toFixed(2)})`);
+        const msg = `M106 S255 ; >>> OPTIMERET: Maksimal køling pga. kort lagtid (Z: ${zHeight.toFixed(2)}, Tid: ${stats.time.toFixed(1)}s)`;
+        output.push(msg);
+        logs.push({ lineNum: lineNum + output.length, message: msg });
         optimizationsCount++;
       }
 
       if (targetSpeedFactor !== currentSpeedFactor) {
-        output.push(`M220 S${targetSpeedFactor} ; >>> OPTIMERET: Hastighed justeret til ${targetSpeedFactor}% (Z: ${zHeight.toFixed(2)})`);
+        let reason = 'Ukendt';
+        if (needsCoolingFix && stats.time < 10) reason = `Kort lagtid (${stats.time.toFixed(1)}s)`;
+        else if (needsCornerFix) reason = `Skarpe hjørner (${stats.sharpCornerHighSpeedCount})`;
+        else if (needsFlowFix) reason = `Højt flow (${stats.flow.toFixed(1)} mm³/s)`;
+        
+        const msg = `M220 S${targetSpeedFactor} ; >>> OPTIMERET: Hastighed justeret til ${targetSpeedFactor}% pga. ${reason} (Z: ${zHeight.toFixed(2)})`;
+        output.push(msg);
+        logs.push({ lineNum: lineNum + output.length, message: msg });
         currentSpeedFactor = targetSpeedFactor;
         optimizationsCount++;
+        isSpeedForced = true;
+      } else {
+        isSpeedForced = false;
       }
 
       if (targetAccel !== currentAccel) {
-        output.push(`M204 P${targetAccel} ; >>> OPTIMERET: Acceleration justeret til ${targetAccel} (Z: ${zHeight.toFixed(2)})`);
+        const msg = `M204 P${targetAccel} ; >>> OPTIMERET: Acceleration justeret til ${targetAccel} pga. Skarpe hjørner (${stats.sharpCornerHighSpeedCount}) (Z: ${zHeight.toFixed(2)})`;
+        output.push(msg);
+        logs.push({ lineNum: lineNum + output.length, message: msg });
         currentAccel = targetAccel;
         optimizationsCount++;
+        isAccelForced = true;
+      } else {
+        isAccelForced = false;
       }
     }
   };
   
-  for (const line of lines) {
-    const trimmed = line.trim();
+  const chunkSize = 1024 * 1024 * 2; // 2MB chunks
+  let offset = 0;
+  let leftover = '';
+
+  while (offset < file.size) {
+    const slice = file.slice(offset, offset + chunkSize);
+    const text = await slice.text();
+    const chunkStr = leftover + text;
+    const lines = chunkStr.split('\n');
     
-    // Update current Z height
-    if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
-      const zMatch = trimmed.match(/Z([\d.]+)/);
-      if (zMatch) {
-        currentZ = parseFloat(zMatch[1]);
+    if (offset + chunkSize < file.size) {
+      leftover = lines.pop() || '';
+    } else {
+      leftover = '';
+    }
+
+    const chunkOutput: string[] = [];
+    for (const line of lines) {
+      lineNum++;
+      const trimmed = line.trim();
+      
+      // Update current Z height
+      if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
+        const zMatch = trimmed.match(/Z([\d.]+)/);
+        if (zMatch) {
+          currentZ = parseFloat(zMatch[1]);
+        }
+        
+        // If we are extruding and we are at a new Z height, apply optimizations
+        const eMatch = trimmed.match(/E([\d.-]+)/);
+        if (eMatch && parseFloat(eMatch[1]) > 0 && currentZ > highestZ + 0.001) {
+          highestZ = currentZ;
+          applyLayerOptimizations(highestZ, chunkOutput);
+        }
       }
       
-      // If we are extruding and we are at a new Z height, apply optimizations
+      // Comment out conflicting slicer commands if we forced an optimization for this layer
+      if (trimmed.startsWith('M106') || trimmed.startsWith('M107')) {
+        if (isCoolingForced) {
+          chunkOutput.push(`; ${line} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvungen køling for dette lag)`);
+          continue;
+        }
+      } else if (trimmed.startsWith('M220')) {
+        if (isSpeedForced) {
+          chunkOutput.push(`; ${line} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvungen hastighed for dette lag)`);
+          continue;
+        }
+      } else if (trimmed.startsWith('M204')) {
+        if (isAccelForced) {
+          chunkOutput.push(`; ${line} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvungen acceleration for dette lag)`);
+          continue;
+        }
+      } else if (trimmed.startsWith('M221')) {
+        if (options?.flowMultiplier && options.flowMultiplier !== 100) {
+          chunkOutput.push(`; ${line} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvunget globalt flow)`);
+          continue;
+        }
+      }
+      
+      chunkOutput.push(line);
+    }
+    
+    blobParts.push(chunkOutput.join('\n') + '\n');
+    offset += chunkSize;
+  }
+
+  if (leftover) {
+    lineNum++;
+    const chunkOutput: string[] = [];
+    const trimmed = leftover.trim();
+    if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
+      const zMatch = trimmed.match(/Z([\d.]+)/);
+      if (zMatch) currentZ = parseFloat(zMatch[1]);
       const eMatch = trimmed.match(/E([\d.-]+)/);
       if (eMatch && parseFloat(eMatch[1]) > 0 && currentZ > highestZ + 0.001) {
         highestZ = currentZ;
-        applyLayerOptimizations(highestZ, optimizedLines);
+        applyLayerOptimizations(highestZ, chunkOutput);
       }
     }
     
-    optimizedLines.push(line);
+    if (trimmed.startsWith('M106') || trimmed.startsWith('M107')) {
+      if (isCoolingForced) {
+        chunkOutput.push(`; ${leftover} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvungen køling for dette lag)`);
+      } else {
+        chunkOutput.push(leftover);
+      }
+    } else if (trimmed.startsWith('M220')) {
+      if (isSpeedForced) {
+        chunkOutput.push(`; ${leftover} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvungen hastighed for dette lag)`);
+      } else {
+        chunkOutput.push(leftover);
+      }
+    } else if (trimmed.startsWith('M204')) {
+      if (isAccelForced) {
+        chunkOutput.push(`; ${leftover} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvungen acceleration for dette lag)`);
+      } else {
+        chunkOutput.push(leftover);
+      }
+    } else if (trimmed.startsWith('M221')) {
+      if (options?.flowMultiplier && options.flowMultiplier !== 100) {
+        chunkOutput.push(`; ${leftover} ; >>> OPTIMERET: Deaktiveret af 3D Print Optimerer (tvunget globalt flow)`);
+      } else {
+        chunkOutput.push(leftover);
+      }
+    } else {
+      chunkOutput.push(leftover);
+    }
+    
+    blobParts.push(chunkOutput.join('\n') + '\n');
   }
 
+  const footer: string[] = [];
   if (optimizationsCount === 0) {
-    optimizedLines.push("; INFO: Ingen kritiske problemer fundet. Ingen ændringer foretaget.");
+    footer.push("; INFO: Ingen kritiske problemer fundet. Ingen ændringer foretaget.");
   } else {
-    optimizedLines.push("; INFO: " + optimizationsCount + " optimeringer blev indsat i filen.");
+    footer.push("; INFO: " + optimizationsCount + " optimeringer blev indsat i filen.");
   }
+  blobParts.push(footer.join('\n'));
   
-  return new Blob([optimizedLines.join('\n')], { type: 'text/plain' });
+  return { blob: new Blob(blobParts, { type: 'text/plain' }), logs };
 }
