@@ -1,7 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Upload, AlertTriangle, Clock, Zap, Wind, CornerUpRight, Download, FileJson, Ruler, Move, Box, Loader2, File as FileIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, ComposedChart, Bar, Legend, Brush } from 'recharts';
-import { parseGCode, LayerStat, optimizeGCode, OptimizationLog } from '../utils/gcodeParser';
+import { parseGCode, LayerStat, optimizeGCode, OptimizationLog, parseGCodePath, GCodePathLayer } from '../utils/gcodeParser';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Stage } from '@react-three/drei';
+import * as THREE from 'three';
 
 interface GCodeStats {
   totalTime: number;
@@ -49,6 +52,10 @@ export default function GCodeTab() {
   const [flowLimit, setFlowLimit] = useState<number>(15);
 
   const [optimizationLogs, setOptimizationLogs] = useState<OptimizationLog[] | null>(null);
+
+  // 3D Preview States
+  const [pathLayers, setPathLayers] = useState<GCodePathLayer[] | null>(null);
+  const [gcodeCenter, setGcodeCenter] = useState<THREE.Vector3>(new THREE.Vector3());
 
   const validateGCodeFile = async (file: File): Promise<{ isValid: boolean; error?: string }> => {
     // Tjek filendelse først
@@ -167,7 +174,11 @@ export default function GCodeTab() {
         return;
       }
 
-      const parseResult = await parseGCode(file, setProgress);
+      const [parseResult, pathResult] = await Promise.all([
+        parseGCode(file, setProgress),
+        parseGCodePath(file, () => {}) // Silent progress for path parsing
+      ]);
+
       const parsedLayers = Array.isArray(parseResult) ? parseResult : parseResult.layers;
       setLayers(parsedLayers);
       setVisibleLayersCount(100);
@@ -175,6 +186,32 @@ export default function GCodeTab() {
       setStats(calculateStats(parsedLayers, parseResult));
       setOptimizedLayers(null);
       setOptimizedStats(null);
+
+      // Calculate center of the GCode path to align it
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+      
+      pathResult.forEach(layer => {
+        for (let i = 0; i < layer.positions.length; i += 3) {
+          const x = layer.positions[i];
+          const y = layer.positions[i+1];
+          const z = layer.positions[i+2];
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          if (z < minZ) minZ = z;
+          if (z > maxZ) maxZ = z;
+        }
+      });
+      
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const cz = (minZ + maxZ) / 2;
+      
+      setGcodeCenter(new THREE.Vector3(cx, cy, cz));
+      setPathLayers(pathResult);
     } catch (err) {
       console.error("Error parsing GCODE:", err);
       setError("Der opstod en fejl under læsning af GCODE filen: " + (err instanceof Error ? err.message : String(err)));
@@ -683,6 +720,47 @@ export default function GCodeTab() {
               )}
             </div>
 
+            {optimizedStats && (
+              <div className="bg-emerald-950/20 border border-emerald-900/50 rounded-xl p-6 flex flex-col mt-6">
+                <div className="flex items-center gap-3 text-emerald-400 mb-6">
+                  <Zap className="w-6 h-6" />
+                  <h3 className="text-lg font-medium">Optimeret Estimat</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div>
+                    <div className="text-sm text-zinc-400 mb-1">Ny Samlet Tid</div>
+                    <div className="text-3xl font-mono text-emerald-400">{formatTime(optimizedStats.totalTime)}</div>
+                    <div className="text-sm text-emerald-500/70 mt-1">
+                      Sparer {formatTime(stats.totalTime - optimizedStats.totalTime)} ({((stats.totalTime - optimizedStats.totalTime) / stats.totalTime * 100).toFixed(1)}%)
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-zinc-400 mb-1">Tidsfordeling</div>
+                    <div className="text-sm text-zinc-300">Print: <span className="font-mono text-emerald-400">{formatTime(optimizedStats.totalPrintTime)}</span></div>
+                    <div className="text-sm text-zinc-300 mt-1">Rejse: <span className="font-mono text-emerald-400">{formatTime(optimizedStats.totalTravelTime)}</span></div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-zinc-400 mb-1">Nyt Filamentforbrug</div>
+                    <div className="text-3xl font-mono text-emerald-400">
+                      {(optimizedStats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-emerald-500/70">g</span>
+                    </div>
+                    <div className="text-sm text-emerald-500/70 mt-1">
+                      Pris: {(optimizedStats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124 * 0.5).toFixed(2)} kr.
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-zinc-400 mb-1">Ny Gns. Hastighed</div>
+                    <div className="text-3xl font-mono text-emerald-400">
+                      {optimizedStats.averageSpeed.toFixed(0)} <span className="text-lg text-emerald-500/70">mm/s</span>
+                    </div>
+                    <div className="text-sm text-emerald-500/70 mt-1">
+                      Tidligere: {stats.averageSpeed.toFixed(0)} mm/s
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {Object.keys(stats.featureTimes).length > 0 && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
                 <div className="flex items-center gap-3 text-zinc-400 mb-4">
@@ -848,54 +926,110 @@ export default function GCodeTab() {
           </div>
 
           {selectedLayer && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-zinc-100 font-medium text-lg">
-                  Valgt Lag: {selectedLayer.layerNum} <span className="text-zinc-500 text-sm ml-2">(Z: {selectedLayer.z.toFixed(2)} mm)</span>
-                </h3>
-                <button 
-                  onClick={() => setSelectedLayer(null)}
-                  className="text-zinc-500 hover:text-zinc-300 text-sm"
-                >
-                  Ryd valg
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="flex flex-col">
-                  <span className="text-xs text-zinc-500 mb-1">Tid</span>
-                  <span className="text-lg font-mono text-zinc-100">{formatTime(selectedLayer.time)}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-zinc-100 font-medium text-lg">
+                    Valgt Lag: {selectedLayer.layerNum} <span className="text-zinc-500 text-sm ml-2">(Z: {selectedLayer.z.toFixed(2)} mm)</span>
+                  </h3>
+                  <button 
+                    onClick={() => setSelectedLayer(null)}
+                    className="text-zinc-500 hover:text-zinc-300 text-sm"
+                  >
+                    Ryd valg
+                  </button>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-zinc-500 mb-1">Gns. Hastighed</span>
-                  <span className="text-lg font-mono text-zinc-100">{selectedLayer.avgSpeed.toFixed(0)} <span className="text-sm text-zinc-500">mm/s</span></span>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 mb-1">Tid</span>
+                    <span className="text-lg font-mono text-zinc-100">{formatTime(selectedLayer.time)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 mb-1">Gns. Hastighed</span>
+                    <span className="text-lg font-mono text-zinc-100">{selectedLayer.avgSpeed.toFixed(0)} <span className="text-sm text-zinc-500">mm/s</span></span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 mb-1">Flow</span>
+                    <span className="text-lg font-mono text-zinc-100">{selectedLayer.flow.toFixed(2)} <span className="text-sm text-zinc-500">mm³/s</span></span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 mb-1">Blæser</span>
+                    <span className="text-lg font-mono text-zinc-100">{Math.round((selectedLayer.avgFanSpeed / 255) * 100)}%</span>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-zinc-500 mb-1">Flow</span>
-                  <span className="text-lg font-mono text-zinc-100">{selectedLayer.flow.toFixed(2)} <span className="text-sm text-zinc-500">mm³/s</span></span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-zinc-500 mb-1">Blæser</span>
-                  <span className="text-lg font-mono text-zinc-100">{Math.round((selectedLayer.avgFanSpeed / 255) * 100)}%</span>
-                </div>
+
+                {(selectedLayer.coolingWarning || selectedLayer.sharpCornerHighSpeedCount > 10) && (
+                  <div className="flex flex-wrap gap-2 mt-2 pt-4 border-t border-zinc-800/50">
+                    {selectedLayer.coolingWarning && (
+                      <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium">
+                        <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
+                        <span>Køle-advarsel: Dette lag printes hurtigt med utilstrækkelig køling.</span>
+                      </div>
+                    )}
+                    {selectedLayer.sharpCornerHighSpeedCount > 10 && (
+                      <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
+                        <CornerUpRight className="w-3.5 h-3.5 mr-1.5" />
+                        <span>Hurtige hjørner: {selectedLayer.sharpCornerHighSpeedCount} skarpe hjørner taget ved høj hastighed.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {(selectedLayer.coolingWarning || selectedLayer.sharpCornerHighSpeedCount > 10) && (
-                <div className="flex flex-wrap gap-2 mt-2 pt-4 border-t border-zinc-800/50">
-                  {selectedLayer.coolingWarning && (
-                    <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium">
-                      <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
-                      <span>Køle-advarsel: Dette lag printes hurtigt med utilstrækkelig køling.</span>
-                    </div>
-                  )}
-                  {selectedLayer.sharpCornerHighSpeedCount > 10 && (
-                    <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
-                      <CornerUpRight className="w-3.5 h-3.5 mr-1.5" />
-                      <span>Hurtige hjørner: {selectedLayer.sharpCornerHighSpeedCount} skarpe hjørner taget ved høj hastighed.</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* 3D Preview of Selected Layer */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col h-[300px] lg:h-auto relative overflow-hidden">
+                <h3 className="text-zinc-100 font-medium mb-2 absolute top-6 left-6 z-10">3D Lag Preview</h3>
+                {pathLayers && pathLayers[selectedLayer.layerNum - 1] ? (
+                  <div className="w-full h-full absolute inset-0">
+                    <Canvas camera={{ position: [0, 50, 100], fov: 45 }}>
+                      <color attach="background" args={['#18181b']} />
+                      <Stage environment={null} intensity={0.5} adjustCamera={1.2}>
+                        <group position={[-gcodeCenter.x, -gcodeCenter.y, -gcodeCenter.z]}>
+                          <lineSegments>
+                            <bufferGeometry>
+                              <bufferAttribute 
+                                attach="attributes-position" 
+                                count={pathLayers[selectedLayer.layerNum - 1].positions.length / 3} 
+                                array={pathLayers[selectedLayer.layerNum - 1].positions} 
+                                itemSize={3} 
+                              />
+                              <bufferAttribute 
+                                attach="attributes-color" 
+                                count={pathLayers[selectedLayer.layerNum - 1].colors.length / 3} 
+                                array={pathLayers[selectedLayer.layerNum - 1].colors} 
+                                itemSize={3} 
+                              />
+                            </bufferGeometry>
+                            <lineBasicMaterial vertexColors={true} linewidth={2} />
+                          </lineSegments>
+                          
+                          {/* Highlight corners if any */}
+                          {pathLayers[selectedLayer.layerNum - 1].cornerPositions && pathLayers[selectedLayer.layerNum - 1].cornerPositions!.length > 0 && (
+                            <points>
+                              <bufferGeometry>
+                                <bufferAttribute 
+                                  attach="attributes-position" 
+                                  count={pathLayers[selectedLayer.layerNum - 1].cornerPositions!.length / 3} 
+                                  array={pathLayers[selectedLayer.layerNum - 1].cornerPositions!} 
+                                  itemSize={3} 
+                                />
+                              </bufferGeometry>
+                              <pointsMaterial color="#ef4444" size={2} sizeAttenuation={false} depthTest={false} />
+                            </points>
+                          )}
+                        </group>
+                      </Stage>
+                      <OrbitControls makeDefault />
+                      <gridHelper args={[400, 40, '#27272a', '#18181b']} position={[0, -0.1, 0]} />
+                    </Canvas>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+                    {isProcessing ? 'Indlæser 3D data...' : '3D data for dette lag er ikke tilgængeligt.'}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
