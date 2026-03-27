@@ -474,32 +474,32 @@ export default function GCodeTab() {
     <div className="flex flex-col h-full gap-6">
       {/* Header & Upload */}
       <div className="flex flex-col gap-6 w-full">
-        <div className="w-full md:w-96 bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-zinc-100 mb-2">GCODE Analysator</h2>
-          <p className="text-zinc-400 text-sm mb-6">
+        <div className="w-full md:w-96 bg-slate-800 border border-slate-700 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-slate-100 mb-2">GCODE Analysator</h2>
+          <p className="text-slate-400 text-sm mb-6">
             Find svage punkter, hastighedsfejl og køleproblemer før du printer.
           </p>
           
           <div className="flex flex-col gap-3">
             <label 
               className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-                isDragging ? 'border-emerald-500 bg-emerald-500/10' :
-                'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
+                isDragging ? 'border-blue-500 bg-blue-500/10' :
+                'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
               }`}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
               onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileUpload(e); }}
             >
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <Upload className="w-8 h-8 mb-3 text-zinc-400" />
-                <p className="mb-2 text-sm text-zinc-400"><span className="font-semibold">Upload .gcode</span></p>
+                <Upload className="w-8 h-8 mb-3 text-slate-400" />
+                <p className="mb-2 text-sm text-slate-400"><span className="font-semibold">Upload .gcode</span></p>
               </div>
               <input type="file" accept=".gcode" className="hidden" onChange={handleFileUpload} disabled={isProcessing} />
             </label>
 
             <div className="flex gap-3">
-              <label className="flex-1 flex items-center justify-center py-3 border border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800/30 hover:bg-zinc-800 transition-colors">
-                <div className="flex items-center gap-2 text-zinc-400">
+              <label className="flex-1 flex items-center justify-center py-3 border border-slate-700 border-dashed rounded-lg cursor-pointer bg-slate-800/30 hover:bg-slate-800 transition-colors">
+                <div className="flex items-center gap-2 text-slate-400">
                   <FileJson className="w-4 h-4" />
                   <span className="text-xs font-medium">Indlæs analyse (.json)</span>
                 </div>
@@ -507,8 +507,8 @@ export default function GCodeTab() {
               </label>
               
               {layers.length > 0 && (
-                <label className="flex-1 flex items-center justify-center py-3 border border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800/30 hover:bg-zinc-800 transition-colors">
-                  <div className="flex items-center gap-2 text-zinc-400">
+                <label className="flex-1 flex items-center justify-center py-3 border border-slate-700 border-dashed rounded-lg cursor-pointer bg-slate-800/30 hover:bg-slate-800 transition-colors">
+                  <div className="flex items-center gap-2 text-slate-400">
                     <FileJson className="w-4 h-4" />
                     <span className="text-xs font-medium">Sammenlign (.json)</span>
                   </div>
@@ -527,12 +527,12 @@ export default function GCodeTab() {
 
           {isProcessing && (
             <div className="mt-4">
-              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+              <div className="flex justify-between text-xs text-slate-400 mb-1">
                 <span>Analyserer...</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full bg-zinc-800 rounded-full h-2">
-                <div className="bg-emerald-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+              <div className="w-full bg-slate-900 rounded-full h-2">
+                <div className="bg-blue-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
               </div>
             </div>
           )}
@@ -541,14 +541,14 @@ export default function GCodeTab() {
         {/* Stats Overview */}
         {layers.length > 0 && (
           <div className="w-full flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-zinc-900 border border-zinc-800 rounded-xl p-5 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800 border border-slate-700 rounded-xl p-5 gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 shrink-0">
                   <FileIcon className="w-6 h-6" />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Analyse Resultater</span>
-                  <h2 className="text-xl font-bold text-zinc-100 truncate max-w-[250px] sm:max-w-[400px] lg:max-w-[600px]" title={fileName || 'Ukendt fil'}>
+                  <span className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Analyse Resultater</span>
+                  <h2 className="text-xl font-bold text-slate-100 truncate max-w-[250px] sm:max-w-[400px] lg:max-w-[600px]" title={fileName || 'Ukendt fil'}>
                     {fileName || 'Ukendt fil'}
                   </h2>
                 </div>
@@ -564,32 +564,32 @@ export default function GCodeTab() {
                 </button>
                 <button 
                   onClick={exportToJson}
-                  className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-1.5 px-3 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 px-3 rounded-lg text-sm font-medium transition-colors border border-slate-700"
                   title="Download analyse som JSON"
                 >
-                  <FileJson className="w-4 h-4 text-emerald-500" />
+                  <FileJson className="w-4 h-4 text-blue-500" />
                   Gem Analyse (.json)
                 </button>
                 
                 {originalFile && (
-                  <div className="flex items-center gap-2 bg-zinc-800/50 border border-zinc-700 rounded-lg p-1">
+                  <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg p-1">
                     <div className="flex items-center gap-2 px-2" title="Juster flow (extrusion multiplier) for hele printet.">
-                      <span className="text-xs text-zinc-400 font-medium">Flow:</span>
+                      <span className="text-xs text-slate-400 font-medium">Flow:</span>
                       <input 
                         type="number" 
                         min="50" 
                         max="150" 
                         value={flowMultiplier}
                         onChange={(e) => setFlowMultiplier(Number(e.target.value))}
-                        className="w-14 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-xs text-zinc-200 text-center focus:outline-none focus:border-emerald-500"
+                        className="w-14 bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-xs text-slate-200 text-center focus:outline-none focus:border-blue-500"
                       />
-                      <span className="text-xs text-zinc-500">%</span>
+                      <span className="text-xs text-slate-500">%</span>
                     </div>
-                    <div className="w-px h-4 bg-zinc-700"></div>
+                    <div className="w-px h-4 bg-slate-700"></div>
                     <button 
                       onClick={handleOptimizeAndDownload}
                       disabled={isOptimizing}
-                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-1 px-3 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-1 px-3 rounded-md text-sm font-medium transition-colors shadow-lg shadow-blue-900/20 disabled:opacity-50"
                     >
                       {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                       Optimér & Gem
@@ -600,120 +600,120 @@ export default function GCodeTab() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Den samlede tid det tager at printe filen, inklusiv opvarmning og rejsebevægelser.">
-                <div className="flex items-center gap-3 text-zinc-400 mb-2">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col justify-center" title="Den samlede tid det tager at printe filen, inklusiv opvarmning og rejsebevægelser.">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
                   <Clock className="w-5 h-5" />
                   <span className="text-sm font-medium">Estimeret Tid</span>
                 </div>
-                <div className="text-3xl font-mono text-zinc-100">{formatTime(stats.totalTime)}</div>
+                <div className="text-3xl font-mono text-slate-100">{formatTime(stats.totalTime)}</div>
                 {(optimizedStats || compareStats) && (
-                  <div className={`text-sm font-medium mt-1 ${stats.totalTime < (optimizedStats || compareStats)!.totalTime ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <div className={`text-sm font-medium mt-1 ${stats.totalTime < (optimizedStats || compareStats)!.totalTime ? 'text-blue-400' : 'text-red-400'}`}>
                     {stats.totalTime < (optimizedStats || compareStats)!.totalTime ? '-' : '+'}{formatTime(Math.abs(stats.totalTime - (optimizedStats || compareStats)!.totalTime))} vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
-                <div className="text-xs text-zinc-500 mt-2">
+                <div className="text-xs text-slate-500 mt-2">
                   Print: {formatTime(stats.totalPrintTime)} | Rejse: {formatTime(stats.totalTravelTime)}
                 </div>
               </div>
               
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Mængden af filament der bruges til printet, beregnet ud fra ekstruderingslængde og filamentdiameter (1.75mm).">
-                <div className="flex items-center gap-3 text-zinc-400 mb-2">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col justify-center" title="Mængden af filament der bruges til printet, beregnet ud fra ekstruderingslængde og filamentdiameter (1.75mm).">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
                   <Box className="w-5 h-5" />
                   <span className="text-sm font-medium">Filament Forbrug</span>
                 </div>
-                <div className="text-3xl font-mono text-zinc-100">
-                  {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-zinc-500">g</span>
+                <div className="text-3xl font-mono text-slate-100">
+                  {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-slate-500">g</span>
                 </div>
                 {(optimizedStats || compareStats) && (
-                  <div className={`text-sm font-medium mt-1 ${stats.totalFilament < (optimizedStats || compareStats)!.totalFilament ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <div className={`text-sm font-medium mt-1 ${stats.totalFilament < (optimizedStats || compareStats)!.totalFilament ? 'text-blue-400' : 'text-red-400'}`}>
                     {stats.totalFilament < (optimizedStats || compareStats)!.totalFilament ? '-' : '+'}{Math.abs((stats.totalFilament - (optimizedStats || compareStats)!.totalFilament) * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)}g vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
-                <div className="text-sm font-medium text-emerald-400 mt-1">
-                  Pris: {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124 * 0.5).toFixed(2)} kr. <span className="text-xs text-zinc-500 font-normal">(0,50 kr/g)</span>
+                <div className="text-sm font-medium text-blue-400 mt-1">
+                  Pris: {(stats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124 * 0.5).toFixed(2)} kr. <span className="text-xs text-slate-500 font-normal">(0,50 kr/g)</span>
                 </div>
-                <div className="text-xs text-zinc-500 mt-2">
+                <div className="text-xs text-slate-500 mt-2">
                   {(stats.totalFilament / 1000).toFixed(2)} m | Gns. flow: {stats.maxFlow.toFixed(1)} mm³/s
                 </div>
               </div>
 
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Hvor konsistent laghøjden er gennem hele printet. En variabel laghøjde kan indikere brug af adaptiv laghøjde i sliceren.">
-                <div className="flex items-center gap-3 text-zinc-400 mb-2">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col justify-center" title="Hvor konsistent laghøjden er gennem hele printet. En variabel laghøjde kan indikere brug af adaptiv laghøjde i sliceren.">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
                   <Ruler className="w-5 h-5" />
                   <span className="text-sm font-medium">Lag Konsistens</span>
                 </div>
-                <div className="text-3xl font-mono text-zinc-100">
+                <div className="text-3xl font-mono text-slate-100">
                   {stats.layerHeightConsistency < 0.01 ? 'Fremragende' : stats.layerHeightConsistency < 0.05 ? 'God' : 'Variabel'}
                 </div>
-                <div className="text-xs text-zinc-500 mt-2">
+                <div className="text-xs text-slate-500 mt-2">
                   Afvigelse: ±{stats.layerHeightConsistency.toFixed(3)} mm
                 </div>
               </div>
               
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Procentdelen af den samlede tid, der bruges på at ekstrudere filament frem for at flytte printhovedet (rejse). Højere er bedre.">
-                <div className="flex items-center gap-3 text-zinc-400 mb-2">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col justify-center" title="Procentdelen af den samlede tid, der bruges på at ekstrudere filament frem for at flytte printhovedet (rejse). Højere er bedre.">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
                   <Move className="w-5 h-5" />
                   <span className="text-sm font-medium">Rejse Optimeret</span>
                 </div>
-                <div className="text-3xl font-mono text-zinc-100">
-                  {((stats.totalPrintTime / stats.totalTime) * 100).toFixed(0)}<span className="text-lg text-zinc-500">%</span>
+                <div className="text-3xl font-mono text-slate-100">
+                  {((stats.totalPrintTime / stats.totalTime) * 100).toFixed(0)}<span className="text-lg text-slate-500">%</span>
                 </div>
                 {(optimizedStats || compareStats) && (
-                  <div className={`text-sm font-medium mt-1 ${((stats.totalPrintTime / stats.totalTime) * 100) > (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100) ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <div className={`text-sm font-medium mt-1 ${((stats.totalPrintTime / stats.totalTime) * 100) > (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100) ? 'text-blue-400' : 'text-red-400'}`}>
                     {((stats.totalPrintTime / stats.totalTime) * 100) > (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100) ? '+' : ''}{(((stats.totalPrintTime / stats.totalTime) * 100) - (((optimizedStats || compareStats)!.totalPrintTime / (optimizedStats || compareStats)!.totalTime) * 100)).toFixed(1)}% vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
-                <div className="text-xs text-zinc-500 mt-2">
+                <div className="text-xs text-slate-500 mt-2">
                   Tid brugt på at printe vs rejse
                 </div>
               </div>
 
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Den gennemsnitlige hastighed for alle bevægelser.">
-                <div className="flex items-center gap-3 text-zinc-400 mb-2">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col justify-center" title="Den gennemsnitlige hastighed for alle bevægelser.">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
                   <Zap className="w-5 h-5" />
                   <span className="text-sm font-medium">Gns. Hastighed</span>
                 </div>
-                <div className="text-3xl font-mono text-zinc-100">{stats.avgSpeed.toFixed(0)} <span className="text-lg text-zinc-500">mm/s</span></div>
+                <div className="text-3xl font-mono text-slate-100">{stats.avgSpeed.toFixed(0)} <span className="text-lg text-slate-500">mm/s</span></div>
                 {(optimizedStats || compareStats) && (
-                  <div className={`text-sm font-medium mt-1 ${stats.avgSpeed > (optimizedStats || compareStats)!.avgSpeed ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <div className={`text-sm font-medium mt-1 ${stats.avgSpeed > (optimizedStats || compareStats)!.avgSpeed ? 'text-blue-400' : 'text-red-400'}`}>
                     {stats.avgSpeed > (optimizedStats || compareStats)!.avgSpeed ? '+' : ''}{(stats.avgSpeed - (optimizedStats || compareStats)!.avgSpeed).toFixed(0)} mm/s vs {optimizedStats ? 'Optimeret' : compareFileName}
                   </div>
                 )}
-                <div className="text-xs text-zinc-500 mt-2">
+                <div className="text-xs text-slate-500 mt-2">
                   Maks: {stats.maxSpeed.toFixed(0)} mm/s
                 </div>
               </div>
 
-              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.coolingWarnings > 0 ? 'bg-amber-950/20 border-amber-900/50' : 'bg-zinc-900 border-zinc-800'}`} title="Antal lag, der tager meget kort tid at printe, hvilket kan føre til overophedning og dårlig kvalitet, hvis kølingen ikke er tilstrækkelig.">
-                <div className={`flex items-center gap-3 mb-2 ${stats.coolingWarnings > 0 ? 'text-amber-500' : 'text-zinc-400'}`}>
+              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.coolingWarnings > 0 ? 'bg-amber-950/20 border-amber-900/50' : 'bg-slate-800 border-slate-700'}`} title="Antal lag, der tager meget kort tid at printe, hvilket kan føre til overophedning og dårlig kvalitet, hvis kølingen ikke er tilstrækkelig.">
+                <div className={`flex items-center gap-3 mb-2 ${stats.coolingWarnings > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
                   <Wind className="w-5 h-5" />
                   <span className="text-sm font-medium">Køle-advarsler</span>
                 </div>
-                <div className={`text-3xl font-mono ${stats.coolingWarnings > 0 ? 'text-amber-400' : 'text-zinc-100'}`}>
+                <div className={`text-3xl font-mono ${stats.coolingWarnings > 0 ? 'text-amber-400' : 'text-slate-100'}`}>
                   {stats.coolingWarnings} <span className="text-lg opacity-50">lag</span>
                 </div>
               </div>
 
-              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.cornerWarnings > 0 ? 'bg-red-950/20 border-red-900/50' : 'bg-zinc-900 border-zinc-800'}`} title="Antal lag med mange skarpe retningsskift ved høj hastighed, hvilket kan give 'ghosting' eller 'ringing' på printets overflade.">
-                <div className={`flex items-center gap-3 mb-2 ${stats.cornerWarnings > 0 ? 'text-red-500' : 'text-zinc-400'}`}>
+              <div className={`border rounded-xl p-6 flex flex-col justify-center ${stats.cornerWarnings > 0 ? 'bg-red-950/20 border-red-900/50' : 'bg-slate-800 border-slate-700'}`} title="Antal lag med mange skarpe retningsskift ved høj hastighed, hvilket kan give 'ghosting' eller 'ringing' på printets overflade.">
+                <div className={`flex items-center gap-3 mb-2 ${stats.cornerWarnings > 0 ? 'text-red-500' : 'text-slate-400'}`}>
                   <CornerUpRight className="w-5 h-5" />
                   <span className="text-sm font-medium">Hurtige Hjørner</span>
                 </div>
-                <div className={`text-3xl font-mono ${stats.cornerWarnings > 0 ? 'text-red-400' : 'text-zinc-100'}`}>
+                <div className={`text-3xl font-mono ${stats.cornerWarnings > 0 ? 'text-red-400' : 'text-slate-100'}`}>
                   {stats.cornerWarnings} <span className="text-lg opacity-50">lag</span>
                 </div>
               </div>
 
               {stats.boundingBox && (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col justify-center" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
-                  <div className="flex items-center gap-3 text-zinc-400 mb-2">
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col justify-center" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
+                  <div className="flex items-center gap-3 text-slate-400 mb-2">
                     <Box className="w-5 h-5" />
                     <span className="text-sm font-medium">Dimensioner</span>
                   </div>
-                  <div className="text-xl font-mono text-zinc-100">
-                    {(stats.boundingBox.maxX - stats.boundingBox.minX).toFixed(1)} <span className="text-sm text-zinc-500">x</span> {(stats.boundingBox.maxY - stats.boundingBox.minY).toFixed(1)} <span className="text-sm text-zinc-500">x</span> {(stats.boundingBox.maxZ - stats.boundingBox.minZ).toFixed(1)} <span className="text-sm text-zinc-500">mm</span>
+                  <div className="text-xl font-mono text-slate-100">
+                    {(stats.boundingBox.maxX - stats.boundingBox.minX).toFixed(1)} <span className="text-sm text-slate-500">x</span> {(stats.boundingBox.maxY - stats.boundingBox.minY).toFixed(1)} <span className="text-sm text-slate-500">x</span> {(stats.boundingBox.maxZ - stats.boundingBox.minZ).toFixed(1)} <span className="text-sm text-slate-500">mm</span>
                   </div>
-                  <div className="text-xs text-zinc-500 mt-2">
+                  <div className="text-xs text-slate-500 mt-2">
                     Bredde x Dybde x Højde
                   </div>
                 </div>
@@ -721,39 +721,39 @@ export default function GCodeTab() {
             </div>
 
             {optimizedStats && (
-              <div className="bg-emerald-950/20 border border-emerald-900/50 rounded-xl p-6 flex flex-col mt-6">
-                <div className="flex items-center gap-3 text-emerald-400 mb-6">
+              <div className="bg-blue-950/20 border border-blue-900/50 rounded-xl p-6 flex flex-col mt-6">
+                <div className="flex items-center gap-3 text-blue-400 mb-6">
                   <Zap className="w-6 h-6" />
                   <h3 className="text-lg font-medium">Optimeret Estimat</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
-                    <div className="text-sm text-zinc-400 mb-1">Ny Samlet Tid</div>
-                    <div className="text-3xl font-mono text-emerald-400">{formatTime(optimizedStats.totalTime)}</div>
-                    <div className="text-sm text-emerald-500/70 mt-1">
+                    <div className="text-sm text-slate-400 mb-1">Ny Samlet Tid</div>
+                    <div className="text-3xl font-mono text-blue-400">{formatTime(optimizedStats.totalTime)}</div>
+                    <div className="text-sm text-blue-500/70 mt-1">
                       Sparer {formatTime(stats.totalTime - optimizedStats.totalTime)} ({((stats.totalTime - optimizedStats.totalTime) / stats.totalTime * 100).toFixed(1)}%)
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-zinc-400 mb-1">Tidsfordeling</div>
-                    <div className="text-sm text-zinc-300">Print: <span className="font-mono text-emerald-400">{formatTime(optimizedStats.totalPrintTime)}</span></div>
-                    <div className="text-sm text-zinc-300 mt-1">Rejse: <span className="font-mono text-emerald-400">{formatTime(optimizedStats.totalTravelTime)}</span></div>
+                    <div className="text-sm text-slate-400 mb-1">Tidsfordeling</div>
+                    <div className="text-sm text-slate-300">Print: <span className="font-mono text-blue-400">{formatTime(optimizedStats.totalPrintTime)}</span></div>
+                    <div className="text-sm text-slate-300 mt-1">Rejse: <span className="font-mono text-blue-400">{formatTime(optimizedStats.totalTravelTime)}</span></div>
                   </div>
                   <div>
-                    <div className="text-sm text-zinc-400 mb-1">Nyt Filamentforbrug</div>
-                    <div className="text-3xl font-mono text-emerald-400">
-                      {(optimizedStats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-emerald-500/70">g</span>
+                    <div className="text-sm text-slate-400 mb-1">Nyt Filamentforbrug</div>
+                    <div className="text-3xl font-mono text-blue-400">
+                      {(optimizedStats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124).toFixed(1)} <span className="text-lg text-blue-500/70">g</span>
                     </div>
-                    <div className="text-sm text-emerald-500/70 mt-1">
+                    <div className="text-sm text-blue-500/70 mt-1">
                       Pris: {(optimizedStats.totalFilament * Math.PI * Math.pow(1.75 / 2, 2) * 0.00124 * 0.5).toFixed(2)} kr.
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-zinc-400 mb-1">Ny Gns. Hastighed</div>
-                    <div className="text-3xl font-mono text-emerald-400">
-                      {optimizedStats.avgSpeed.toFixed(0)} <span className="text-lg text-emerald-500/70">mm/s</span>
+                    <div className="text-sm text-slate-400 mb-1">Ny Gns. Hastighed</div>
+                    <div className="text-3xl font-mono text-blue-400">
+                      {optimizedStats.avgSpeed.toFixed(0)} <span className="text-lg text-blue-500/70">mm/s</span>
                     </div>
-                    <div className="text-sm text-emerald-500/70 mt-1">
+                    <div className="text-sm text-blue-500/70 mt-1">
                       Tidligere: {stats.avgSpeed.toFixed(0)} mm/s
                     </div>
                   </div>
@@ -762,8 +762,8 @@ export default function GCodeTab() {
             )}
 
             {Object.keys(stats.featureTimes).length > 0 && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                <div className="flex items-center gap-3 text-zinc-400 mb-4">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                <div className="flex items-center gap-3 text-slate-400 mb-4">
                   <Clock className="w-5 h-5" />
                   <span className="text-sm font-medium">Tidsfordeling per Funktion</span>
                 </div>
@@ -772,9 +772,9 @@ export default function GCodeTab() {
                     .sort(([, a], [, b]) => b - a)
                     .map(([feature, time]) => (
                       <div key={feature} className="flex flex-col">
-                        <span className="text-xs text-zinc-500 mb-1">{feature}</span>
-                        <span className="text-lg font-mono text-zinc-100">{formatTime(time)}</span>
-                        <span className="text-xs text-zinc-600">{((time / stats.totalTime) * 100).toFixed(1)}%</span>
+                        <span className="text-xs text-slate-500 mb-1">{feature}</span>
+                        <span className="text-lg font-mono text-slate-100">{formatTime(time)}</span>
+                        <span className="text-xs text-slate-600">{((time / stats.totalTime) * 100).toFixed(1)}%</span>
                       </div>
                     ))}
                 </div>
@@ -783,8 +783,8 @@ export default function GCodeTab() {
 
             {/* Recommendations Section */}
             {(stats.coolingWarnings > 0 || stats.cornerWarnings > 0 || stats.maxFlow > 15 || stats.avgSpeed < 40) && (
-              <div className="bg-zinc-900/80 border border-zinc-700/50 rounded-xl p-6 mt-6">
-                <div className="flex items-center gap-3 text-zinc-100 mb-4">
+              <div className="bg-slate-800/80 border border-slate-700/50 rounded-xl p-6 mt-6">
+                <div className="flex items-center gap-3 text-slate-100 mb-4">
                   <AlertTriangle className="w-5 h-5 text-amber-500" />
                   <h3 className="text-lg font-medium">Løsningsforslag & Anbefalinger</h3>
                 </div>
@@ -795,7 +795,7 @@ export default function GCodeTab() {
                         <h4 className="text-amber-400 font-medium flex items-center gap-2 mb-2">
                           <Wind className="w-4 h-4" /> Kritisk kort lagtid
                         </h4>
-                        <p className="text-sm text-zinc-300 mb-3">
+                        <p className="text-sm text-slate-300 mb-3">
                           Nogle lag printes for hurtigt til at plastikken kan nå at køle ned. 
                           <strong> Løsning:</strong> Øg "Minimum Layer Time" i din slicer (typisk til 10-15 sekunder), eller sørg for at blæseren kører på 100% på disse lag ("Minimum Cooling Speed").
                         </p>
@@ -805,9 +805,9 @@ export default function GCodeTab() {
                           type="checkbox" 
                           checked={fixCooling} 
                           onChange={(e) => setFixCooling(e.target.checked)}
-                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500/20"
+                          className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-amber-500/20"
                         />
-                        <span className="text-xs text-zinc-400">Ret automatisk i GCODE (sænk hastighed)</span>
+                        <span className="text-xs text-slate-400">Ret automatisk i GCODE (sænk hastighed)</span>
                       </label>
                     </div>
                   )}
@@ -817,7 +817,7 @@ export default function GCodeTab() {
                         <h4 className="text-red-400 font-medium flex items-center gap-2 mb-2">
                           <CornerUpRight className="w-4 h-4" /> Hurtige hjørner
                         </h4>
-                        <p className="text-sm text-zinc-300 mb-3">
+                        <p className="text-sm text-slate-300 mb-3">
                           Der er mange skarpe retningsskift ved høj hastighed. Dette kan forårsage "ringing" eller "ghosting" på printets overflade.
                           <strong> Løsning:</strong> Sænk hastigheden for yderste vægge (Outer Wall Speed), eller juster Jerk/Acceleration i sliceren for at blødgøre bevægelserne.
                         </p>
@@ -827,9 +827,9 @@ export default function GCodeTab() {
                           type="checkbox" 
                           checked={fixCorners} 
                           onChange={(e) => setFixCorners(e.target.checked)}
-                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-red-500 focus:ring-red-500/20"
+                          className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-red-500 focus:ring-red-500/20"
                         />
-                        <span className="text-xs text-zinc-400">Ret automatisk i GCODE (reducer accel/hastighed)</span>
+                        <span className="text-xs text-slate-400">Ret automatisk i GCODE (reducer accel/hastighed)</span>
                       </label>
                     </div>
                   )}
@@ -839,7 +839,7 @@ export default function GCodeTab() {
                         <h4 className="text-orange-400 font-medium flex items-center gap-2 mb-2">
                           <Zap className="w-4 h-4" /> Ekstremt højt filament flow
                         </h4>
-                        <p className="text-sm text-zinc-300 mb-3">
+                        <p className="text-sm text-slate-300 mb-3">
                           Dit maksimale flow er over 15 mm³/s ({stats.maxFlow.toFixed(1)} mm³/s). Standard hotends (som på en Ender 3) kan typisk kun klare 10-15 mm³/s før ekstruderen begynder at klikke (under-extrusion).
                           <strong> Løsning:</strong> Sænk din generelle printhastighed, reducer laghøjden, eller reducer linjebredden (Line Width).
                         </p>
@@ -849,9 +849,9 @@ export default function GCodeTab() {
                           type="checkbox" 
                           checked={fixFlow} 
                           onChange={(e) => setFixFlow(e.target.checked)}
-                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-orange-500 focus:ring-orange-500/20"
+                          className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-orange-500 focus:ring-orange-500/20"
                         />
-                        <span className="text-xs text-zinc-400">Ret automatisk i GCODE (begræns hastighed)</span>
+                        <span className="text-xs text-slate-400">Ret automatisk i GCODE (begræns hastighed)</span>
                       </label>
                     </div>
                   )}
@@ -860,7 +860,7 @@ export default function GCodeTab() {
                       <h4 className="text-blue-400 font-medium flex items-center gap-2 mb-2">
                         <Clock className="w-4 h-4" /> Lav gennemsnitshastighed
                       </h4>
-                      <p className="text-sm text-zinc-300">
+                      <p className="text-sm text-slate-300">
                         Din gennemsnitshastighed er relativt lav ({stats.avgSpeed.toFixed(0)} mm/s). Hvis din printer kan klare det, kan du optimere printtiden.
                         <strong> Løsning:</strong> Øg Infill Speed og Inner Wall Speed, da disse ikke påvirker overfladekvaliteten synderligt.
                       </p>
@@ -873,7 +873,7 @@ export default function GCodeTab() {
                     <button 
                       onClick={handleOptimizeAndDownload}
                       disabled={isOptimizing || (!fixCooling && !fixCorners && !fixFlow)}
-                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-900/20 disabled:opacity-50"
                     >
                       {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                       Anvend valgte rettelser & Download GCODE
@@ -885,28 +885,28 @@ export default function GCodeTab() {
             
             {/* G-Code Viewer */}
             {optimizationLogs && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col mb-6">
-                <h3 className="text-zinc-100 font-medium mb-2 flex items-center gap-2">
-                  <FileJson className="w-5 h-5 text-emerald-400" />
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col mb-6">
+                <h3 className="text-slate-100 font-medium mb-2 flex items-center gap-2">
+                  <FileJson className="w-5 h-5 text-blue-400" />
                   Indsatte G-Code Kommandoer
                 </h3>
-                <p className="text-sm text-zinc-400 mb-4">
+                <p className="text-sm text-slate-400 mb-4">
                   Her kan du se præcis hvilke kommandoer programmet har indsat i din G-kode for at løse problemerne.
                 </p>
-                <div className="bg-[#0a0a0a] rounded-lg p-4 overflow-y-auto max-h-80 font-mono text-xs text-zinc-300 border border-zinc-800">
+                <div className="bg-[#0f172a] rounded-lg p-4 overflow-y-auto max-h-80 font-mono text-xs text-slate-300 border border-slate-700">
                   {optimizationLogs.slice(0, 500).map((log, index) => (
-                    <div key={index} className="flex gap-4 hover:bg-zinc-900/50 px-2 py-1 rounded">
-                      <span className="text-zinc-600 select-none w-12 text-right">{log.lineNum}</span>
-                      <span className="text-emerald-400">{log.message}</span>
+                    <div key={index} className="flex gap-4 hover:bg-slate-800/50 px-2 py-1 rounded">
+                      <span className="text-slate-600 select-none w-12 text-right">{log.lineNum}</span>
+                      <span className="text-blue-400">{log.message}</span>
                     </div>
                   ))}
                   {optimizationLogs.length > 500 && (
-                    <div className="text-zinc-500 italic text-center py-4">
+                    <div className="text-slate-500 italic text-center py-4">
                       ... og {optimizationLogs.length - 500} flere optimeringer (skjult for at forbedre ydeevnen)
                     </div>
                   )}
                   {optimizationLogs.length === 0 && (
-                    <div className="text-zinc-500 italic text-center py-4">Ingen optimeringer blev indsat.</div>
+                    <div className="text-slate-500 italic text-center py-4">Ingen optimeringer blev indsat.</div>
                   )}
                 </div>
               </div>
@@ -918,23 +918,23 @@ export default function GCodeTab() {
       {/* Charts */}
       {layers.length > 0 && (
         <div className="flex flex-col gap-6 flex-1">
-          <div className="flex items-center gap-3 pb-2 border-b border-zinc-800/50">
-            <FileIcon className="w-5 h-5 text-emerald-500" />
-            <h2 className="text-lg font-medium text-zinc-200 truncate" title={fileName}>
-              Grafer for: <span className="text-zinc-400 font-mono text-sm ml-1">{fileName}</span>
+          <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+            <FileIcon className="w-5 h-5 text-blue-500" />
+            <h2 className="text-lg font-medium text-slate-200 truncate" title={fileName}>
+              Grafer for: <span className="text-slate-400 font-mono text-sm ml-1">{fileName}</span>
             </h2>
           </div>
 
           {selectedLayer && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-4">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-zinc-100 font-medium text-lg">
-                    Valgt Lag: {selectedLayer.layerNum} <span className="text-zinc-500 text-sm ml-2">(Z: {selectedLayer.z.toFixed(2)} mm)</span>
+                  <h3 className="text-slate-100 font-medium text-lg">
+                    Valgt Lag: {selectedLayer.layerNum} <span className="text-slate-500 text-sm ml-2">(Z: {selectedLayer.z.toFixed(2)} mm)</span>
                   </h3>
                   <button 
                     onClick={() => setSelectedLayer(null)}
-                    className="text-zinc-500 hover:text-zinc-300 text-sm"
+                    className="text-slate-500 hover:text-slate-300 text-sm"
                   >
                     Ryd valg
                   </button>
@@ -942,25 +942,25 @@ export default function GCodeTab() {
                 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 mb-1">Tid</span>
-                    <span className="text-lg font-mono text-zinc-100">{formatTime(selectedLayer.time)}</span>
+                    <span className="text-xs text-slate-500 mb-1">Tid</span>
+                    <span className="text-lg font-mono text-slate-100">{formatTime(selectedLayer.time)}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 mb-1">Gns. Hastighed</span>
-                    <span className="text-lg font-mono text-zinc-100">{selectedLayer.avgSpeed.toFixed(0)} <span className="text-sm text-zinc-500">mm/s</span></span>
+                    <span className="text-xs text-slate-500 mb-1">Gns. Hastighed</span>
+                    <span className="text-lg font-mono text-slate-100">{selectedLayer.avgSpeed.toFixed(0)} <span className="text-sm text-slate-500">mm/s</span></span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 mb-1">Flow</span>
-                    <span className="text-lg font-mono text-zinc-100">{selectedLayer.flow.toFixed(2)} <span className="text-sm text-zinc-500">mm³/s</span></span>
+                    <span className="text-xs text-slate-500 mb-1">Flow</span>
+                    <span className="text-lg font-mono text-slate-100">{selectedLayer.flow.toFixed(2)} <span className="text-sm text-slate-500">mm³/s</span></span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 mb-1">Blæser</span>
-                    <span className="text-lg font-mono text-zinc-100">{Math.round((selectedLayer.avgFanSpeed / 255) * 100)}%</span>
+                    <span className="text-xs text-slate-500 mb-1">Blæser</span>
+                    <span className="text-lg font-mono text-slate-100">{Math.round((selectedLayer.avgFanSpeed / 255) * 100)}%</span>
                   </div>
                 </div>
 
                 {(selectedLayer.coolingWarning || selectedLayer.sharpCornerHighSpeedCount > 10) && (
-                  <div className="flex flex-wrap gap-2 mt-2 pt-4 border-t border-zinc-800/50">
+                  <div className="flex flex-wrap gap-2 mt-2 pt-4 border-t border-slate-700/50">
                     {selectedLayer.coolingWarning && (
                       <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium">
                         <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
@@ -978,13 +978,13 @@ export default function GCodeTab() {
               </div>
 
               {/* 3D Preview of Selected Layer */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col h-[300px] lg:h-auto relative overflow-hidden">
-                <h3 className="text-zinc-100 font-medium mb-2 absolute top-6 left-6 z-10">3D Lag Preview</h3>
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col h-[300px] lg:h-auto relative overflow-hidden">
+                <h3 className="text-slate-100 font-medium mb-2 absolute top-6 left-6 z-10">3D Lag Preview</h3>
                 {(() => {
                   const layerPath = pathLayers?.find(p => p.layerNum === selectedLayer.layerNum);
                   if (!layerPath) {
                     return (
-                      <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+                      <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
                         {isProcessing ? 'Indlæser 3D data...' : '3D data for dette lag er ikke tilgængeligt.'}
                       </div>
                     );
@@ -1040,16 +1040,16 @@ export default function GCodeTab() {
           )}
 
           <div className="flex justify-end mb-2">
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+            <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-1">
               <button
                 onClick={() => setXAxisMode('layer')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${xAxisMode === 'layer' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${xAxisMode === 'layer' ? 'bg-slate-800 text-slate-100' : 'text-slate-500 hover:text-slate-300'}`}
               >
                 Lag Nummer
               </button>
               <button
                 onClick={() => setXAxisMode('z')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${xAxisMode === 'z' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${xAxisMode === 'z' ? 'bg-slate-800 text-slate-100' : 'text-slate-500 hover:text-slate-300'}`}
               >
                 Z-Højde (mm)
               </button>
@@ -1057,9 +1057,9 @@ export default function GCodeTab() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[400px]">
             {/* Layer Time Chart */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-              <h3 className="text-zinc-100 font-medium mb-1">Lag-tid & Køling</h3>
-              <p className="text-xs text-zinc-500 mb-6">Tid brugt per lag (grøn) vs. blæserhastighed (blå). Korte lag kræver høj køling.</p>
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col">
+              <h3 className="text-slate-100 font-medium mb-1">Lag-tid & Køling</h3>
+              <p className="text-xs text-slate-500 mb-6">Tid brugt per lag (grøn) vs. blæserhastighed (blå). Korte lag kræver høj køling.</p>
               <div className="flex-1 w-full min-h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart 
@@ -1109,9 +1109,9 @@ export default function GCodeTab() {
             </div>
 
             {/* Speed & Corners Chart */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-              <h3 className="text-zinc-100 font-medium mb-1">Hastighed & Hjørner</h3>
-              <p className="text-xs text-zinc-500 mb-6">Gns. hastighed (lilla) og antal skarpe hjørner taget ved høj fart (rød).</p>
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col">
+              <h3 className="text-slate-100 font-medium mb-1">Hastighed & Hjørner</h3>
+              <p className="text-xs text-slate-500 mb-6">Gns. hastighed (lilla) og antal skarpe hjørner taget ved høj fart (rød).</p>
               <div className="flex-1 w-full min-h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart 
@@ -1160,9 +1160,9 @@ export default function GCodeTab() {
           </div>
 
           {/* Average Speed Chart */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-            <h3 className="text-zinc-100 font-medium mb-1">Gennemsnitlig Hastighed</h3>
-            <p className="text-xs text-zinc-500 mb-6">Gennemsnitlig printhastighed per lag. Markering ved kritisk lav hastighed (40 mm/s).</p>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col">
+            <h3 className="text-slate-100 font-medium mb-1">Gennemsnitlig Hastighed</h3>
+            <p className="text-xs text-slate-500 mb-6">Gennemsnitlig printhastighed per lag. Markering ved kritisk lav hastighed (40 mm/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart 
@@ -1201,9 +1201,9 @@ export default function GCodeTab() {
           </div>
 
           {/* Print vs Travel Time Chart */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-            <h3 className="text-zinc-100 font-medium mb-1">Print vs Rejse Tid per Lag</h3>
-            <p className="text-xs text-zinc-500 mb-6">Sammenligning af tid brugt på ekstrudering (grøn) vs. rejsebevægelser (orange).</p>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col">
+            <h3 className="text-slate-100 font-medium mb-1">Print vs Rejse Tid per Lag</h3>
+            <p className="text-xs text-slate-500 mb-6">Sammenligning af tid brugt på ekstrudering (grøn) vs. rejsebevægelser (orange).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart 
@@ -1249,9 +1249,9 @@ export default function GCodeTab() {
           </div>
 
           {/* Filament Flow Chart */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
-            <h3 className="text-zinc-100 font-medium mb-1">Filament Flow (mm³/s)</h3>
-            <p className="text-xs text-zinc-500 mb-6">Volumetrisk flow per lag. Markering ved høj flow ({flowLimit} mm³/s).</p>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col">
+            <h3 className="text-slate-100 font-medium mb-1">Filament Flow (mm³/s)</h3>
+            <p className="text-xs text-slate-500 mb-6">Volumetrisk flow per lag. Markering ved høj flow ({flowLimit} mm³/s).</p>
             <div className="flex-1 w-full min-h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart 
@@ -1291,35 +1291,35 @@ export default function GCodeTab() {
           </div>
 
           {/* Chart Legend / Key */}
-          <div className="lg:col-span-2 bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4 flex flex-wrap gap-6 justify-center">
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <div className="lg:col-span-2 bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-wrap gap-6 justify-center">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <path d="M8 2L14 12H2L8 2Z" fill="#f59e0b" stroke="#18181b" strokeWidth="1" />
               </svg>
               <span>Køle-advarsel (Kort lagtid + lav køling)</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <rect x="3" y="3" width="10" height="10" transform="rotate(45 8 8)" fill="#ef4444" stroke="#18181b" strokeWidth="1" />
               </svg>
               <span>Hurtige hjørner ({'>'}10 skarpe hjørner ved høj fart)</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <div className="w-3 h-3 rounded-full bg-red-500 border border-zinc-900" />
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <div className="w-3 h-3 rounded-full bg-red-500 border border-slate-900" />
               <span>Kritisk lav hastighed (&lt;40 mm/s)</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <div className="w-3 h-3 rounded-full bg-amber-500 border border-zinc-900" />
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <div className="w-3 h-3 rounded-full bg-amber-500 border border-slate-900" />
               <span>Høj flow ({'>'}15 mm³/s)</span>
             </div>
           </div>
 
           {/* Layer Table */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col lg:col-span-2">
-            <h3 className="text-zinc-100 font-medium mb-4">Lag Detaljer</h3>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex flex-col lg:col-span-2">
+            <h3 className="text-slate-100 font-medium mb-4">Lag Detaljer</h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-zinc-400">
-                <thead className="text-xs text-zinc-500 uppercase bg-zinc-800/50">
+              <table className="w-full text-sm text-left text-slate-400">
+                <thead className="text-xs text-slate-500 uppercase bg-slate-800/50">
                   <tr>
                     <th className="px-4 py-3 rounded-tl-lg">Lag</th>
                     <th className="px-4 py-3">Z (mm)</th>
@@ -1334,13 +1334,13 @@ export default function GCodeTab() {
                   {layers.slice(0, visibleLayersCount).map((layer) => (
                     <tr 
                       key={layer.layerNum} 
-                      className={`border-b border-zinc-800/50 last:border-0 transition-colors ${
+                      className={`border-b border-slate-700/50 last:border-0 transition-colors ${
                         layer.coolingWarning ? 'bg-amber-950/20' : 
                         layer.sharpCornerHighSpeedCount > 10 ? 'bg-red-950/20' : 
-                        'hover:bg-zinc-800/30'
+                        'hover:bg-slate-800/30'
                       }`}
                     >
-                      <td className="px-4 py-3 font-medium text-zinc-300">{layer.layerNum}</td>
+                      <td className="px-4 py-3 font-medium text-slate-300">{layer.layerNum}</td>
                       <td className="px-4 py-3">{layer.z.toFixed(2)}</td>
                       <td className="px-4 py-3">{formatTime(layer.time)}</td>
                       <td className="px-4 py-3">
@@ -1390,7 +1390,7 @@ export default function GCodeTab() {
               <div className="mt-4 flex justify-center">
                 <button 
                   onClick={() => setVisibleLayersCount(prev => prev + 100)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
                 >
                   Vis flere lag ({layers.length - visibleLayersCount} tilbage)
                 </button>

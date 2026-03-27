@@ -326,20 +326,20 @@ export default function STLTab() {
   return (
     <div className="flex flex-col md:flex-row gap-6 h-full overflow-y-auto md:overflow-hidden custom-scrollbar pr-2 md:pr-0 pb-8 md:pb-0">
       {/* Sidebar */}
-      <div className="w-full md:w-80 bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-5 md:overflow-y-auto shrink-0 custom-scrollbar">
+      <div className="w-full md:w-80 bg-slate-800 border border-slate-700 rounded-xl p-5 flex flex-col gap-5 md:overflow-y-auto shrink-0 custom-scrollbar">
         <div>
-          <h2 className="text-xl font-semibold text-zinc-100 mb-2">STL Optimerer</h2>
-          <p className="text-zinc-400 text-sm">
+          <h2 className="text-xl font-semibold text-slate-100 mb-2">STL Optimerer</h2>
+          <p className="text-slate-400 text-sm">
             Upload din STL fil for at analysere og optimere orienteringen for maksimal styrke.
           </p>
         </div>
 
         <label 
           className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-            isDraggingStl ? 'border-emerald-500 bg-emerald-500/10' :
+            isDraggingStl ? 'border-blue-500 bg-blue-500/10' :
             uploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
-            uploadStatus === 'success' ? 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20' :
-            'border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800'
+            uploadStatus === 'success' ? 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20' :
+            'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDraggingStl(true); }}
           onDragLeave={(e) => { e.preventDefault(); setIsDraggingStl(false); }}
@@ -348,28 +348,28 @@ export default function STLTab() {
           <div className="flex flex-col items-center justify-center pt-4 pb-4 text-center px-4">
             {uploadStatus === 'idle' && (
               <>
-                <Upload className="w-6 h-6 mb-2 text-zinc-400" />
-                <p className="mb-1 text-sm text-zinc-400"><span className="font-semibold">Klik for at uploade</span></p>
-                <p className="text-xs text-zinc-500">.STL filer</p>
+                <Upload className="w-6 h-6 mb-2 text-slate-400" />
+                <p className="mb-1 text-sm text-slate-400"><span className="font-semibold">Klik for at uploade</span></p>
+                <p className="text-xs text-slate-500">.STL filer</p>
               </>
             )}
             {uploadStatus === 'reading' && (
               <>
-                <Loader2 className="w-6 h-6 mb-2 text-emerald-500 animate-spin" />
-                <p className="text-sm text-zinc-300">Læser fil...</p>
+                <Loader2 className="w-6 h-6 mb-2 text-blue-500 animate-spin" />
+                <p className="text-sm text-slate-300">Læser fil...</p>
               </>
             )}
             {uploadStatus === 'parsing' && (
               <>
-                <Loader2 className="w-6 h-6 mb-2 text-emerald-500 animate-spin" />
-                <p className="text-sm text-zinc-300">Analyserer 3D model...</p>
+                <Loader2 className="w-6 h-6 mb-2 text-blue-500 animate-spin" />
+                <p className="text-sm text-slate-300">Analyserer 3D model...</p>
               </>
             )}
             {uploadStatus === 'success' && (
               <>
-                <CheckCircle2 className="w-6 h-6 mb-2 text-emerald-500" />
-                <p className="text-sm text-emerald-400 font-medium truncate max-w-[200px]">{fileName}</p>
-                <p className="text-xs text-emerald-500/70 mt-1">Upload fuldført</p>
+                <CheckCircle2 className="w-6 h-6 mb-2 text-blue-500" />
+                <p className="text-sm text-blue-400 font-medium truncate max-w-[200px]">{fileName}</p>
+                <p className="text-xs text-blue-500/70 mt-1">Upload fuldført</p>
               </>
             )}
             {uploadStatus === 'error' && (
@@ -385,9 +385,9 @@ export default function STLTab() {
 
         {geometry && (
           <div className="space-y-5">
-            <div className="bg-zinc-800/50 p-3 rounded-lg border border-zinc-700/50" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
+            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50" title="Modellens dimensioner i millimeter (Bredde x Dybde x Højde).">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+                <h3 className="text-sm font-medium text-slate-300 flex items-center gap-2">
                   <Info className="w-4 h-4" />
                   Dimensioner (mm)
                 </h3>
@@ -401,23 +401,23 @@ export default function STLTab() {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-zinc-900 p-1.5 rounded">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">X</div>
-                  <div className="font-mono text-sm text-zinc-200">{dimensions?.x.toFixed(1)}</div>
+                <div className="bg-slate-900 p-1.5 rounded">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">X</div>
+                  <div className="font-mono text-sm text-slate-200">{dimensions?.x.toFixed(1)}</div>
                 </div>
-                <div className="bg-zinc-900 p-1.5 rounded">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Y</div>
-                  <div className="font-mono text-sm text-zinc-200">{dimensions?.y.toFixed(1)}</div>
+                <div className="bg-slate-800 p-1.5 rounded">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">Y</div>
+                  <div className="font-mono text-sm text-slate-200">{dimensions?.y.toFixed(1)}</div>
                 </div>
-                <div className="bg-zinc-900 p-1.5 rounded">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Z</div>
-                  <div className="font-mono text-sm text-zinc-200">{dimensions?.z.toFixed(1)}</div>
+                <div className="bg-slate-800 p-1.5 rounded">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">Z</div>
+                  <div className="font-mono text-sm text-slate-200">{dimensions?.z.toFixed(1)}</div>
                 </div>
               </div>
 
               <button 
                 onClick={handleAutoOptimize}
-                className="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-4 rounded-lg text-sm font-medium transition-colors"
+                className="mt-3 w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-1.5 px-4 rounded-lg text-sm font-medium transition-colors"
                 title="Forsøger automatisk at finde den bedste orientering for modellen for at minimere behovet for supportmateriale og maksimere styrken."
               >
                 <Wand2 className="w-4 h-4" />
@@ -425,52 +425,52 @@ export default function STLTab() {
               </button>
               
               {optimizationMessage && (
-                <div className="mt-2 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded text-xs text-emerald-400 leading-relaxed">
+                <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-400 leading-relaxed">
                   {optimizationMessage}
                 </div>
               )}
             </div>
 
             <div title="Rotér modellen for at sikre at de svageste punkter (mellem lagene) ikke udsættes for direkte belastning.">
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">Rotér for styrke</h3>
-              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
+              <h3 className="text-sm font-medium text-slate-300 mb-2">Rotér for styrke</h3>
+              <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                 Husk: FDM-print er svagest mellem lagene (Z-aksen). Rotér din model så belastningen ligger langs X/Y-aksen.
               </p>
               
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">X-Akse</span>
+                  <span className="text-xs text-slate-400">X-Akse</span>
                   <div className="flex gap-1.5">
-                    <button onClick={() => rotate('x', -45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => rotate('x', 45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('x', -45)} className="p-1.5 bg-slate-900 hover:bg-slate-700 rounded text-slate-300"><RotateCcw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('x', 45)} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300"><RotateCw className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">Y-Akse</span>
+                  <span className="text-xs text-slate-400">Y-Akse</span>
                   <div className="flex gap-1.5">
-                    <button onClick={() => rotate('y', -45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => rotate('y', 45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('y', -45)} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300"><RotateCcw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('y', 45)} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300"><RotateCw className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">Z-Akse</span>
+                  <span className="text-xs text-slate-400">Z-Akse</span>
                   <div className="flex gap-1.5">
-                    <button onClick={() => rotate('z', -45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCcw className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => rotate('z', 45)} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"><RotateCw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('z', -45)} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300"><RotateCcw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rotate('z', 45)} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300"><RotateCw className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-zinc-800" title="At øge antallet af vægge (perimeters) er ofte den mest effektive måde at øge en 3D-printet dels styrke på, frem for at øge infill.">
-              <h3 className="text-sm font-medium text-zinc-300 mb-1">Styrk med ekstra vægge</h3>
-              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
+            <div className="pt-4 border-t border-slate-700" title="At øge antallet af vægge (perimeters) er ofte den mest effektive måde at øge en 3D-printet dels styrke på, frem for at øge infill.">
+              <h3 className="text-sm font-medium text-slate-300 mb-1">Styrk med ekstra vægge</h3>
+              <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                 Mange tror infill giver styrke, men væggene (walls) bærer den største belastning. At øge fra 2 til 4 vægge kan gøre din del op til 2-3x stærkere!
               </p>
-              <div className="flex items-center justify-between bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+              <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-700">
                 <div className="flex flex-col">
-                  <span className="text-xs text-zinc-300">Væg-antal</span>
-                  <span className={`text-[10px] font-medium ${wallCount === 4 ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                  <span className="text-xs text-slate-300">Væg-antal</span>
+                  <span className={`text-[10px] font-medium ${wallCount === 4 ? 'text-blue-500' : 'text-slate-500'}`}>
                     {wallCount === 4 ? 'Optimeret til styrke' : 'Standard (2)'}
                   </span>
                 </div>
@@ -478,8 +478,8 @@ export default function STLTab() {
                   onClick={() => setWallCount(wallCount === 2 ? 4 : 2)}
                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                     wallCount === 4 
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                      : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700'
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
+                      : 'bg-slate-900 text-slate-300 hover:bg-slate-700 border border-slate-700'
                   }`}
                 >
                   {wallCount === 4 ? '4 Vægge' : 'Anvend 4 Vægge'}
@@ -487,11 +487,11 @@ export default function STLTab() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-zinc-800">
+            <div className="pt-4 border-t border-slate-700">
               <button 
                 onClick={handleSaveSTL}
                 disabled={isSaving || !geometry}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-4 rounded-lg text-sm font-bold transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-2.5 px-4 rounded-lg text-sm font-bold transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -500,14 +500,14 @@ export default function STLTab() {
                 )}
                 Gem Optimeret STL
               </button>
-              <p className="text-[10px] text-zinc-500 mt-1.5 text-center">
+              <p className="text-[10px] text-slate-500 mt-1.5 text-center">
                 Gemmer modellen med den valgte rotation og orientering.
               </p>
             </div>
 
-            <div className="pt-4 border-t border-zinc-800">
-              <h3 className="text-sm font-medium text-zinc-300 mb-1">GCode Overlay</h3>
-              <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
+            <div className="pt-4 border-t border-slate-700">
+              <h3 className="text-sm font-medium text-slate-300 mb-1">GCode Overlay</h3>
+              <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                 Upload en GCode fil for at visualisere printstien ovenpå din 3D model.
               </p>
               
@@ -515,9 +515,9 @@ export default function STLTab() {
                 <>
                   <label 
                     className={`flex flex-col items-center justify-center w-full h-20 border border-dashed rounded-lg cursor-pointer transition-colors ${
-                      isDraggingGcode ? 'border-emerald-500 bg-emerald-500/10' :
+                      isDraggingGcode ? 'border-blue-500 bg-blue-500/10' :
                       gcodeUploadStatus === 'error' ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' :
-                      'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800'
+                      'border-slate-700 bg-slate-800/30 hover:bg-slate-800'
                     }`}
                     onDragOver={(e) => { e.preventDefault(); setIsDraggingGcode(true); }}
                     onDragLeave={(e) => { e.preventDefault(); setIsDraggingGcode(false); }}
@@ -525,11 +525,11 @@ export default function STLTab() {
                   >
                     <div className="flex items-center justify-center gap-2">
                       {gcodeUploadStatus === 'parsing' ? (
-                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                        <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
                       ) : (
-                        <Layers className="w-4 h-4 text-zinc-400" />
+                        <Layers className="w-4 h-4 text-slate-400" />
                       )}
-                      <span className="text-sm text-zinc-400">
+                      <span className="text-sm text-slate-400">
                         {gcodeUploadStatus === 'parsing' ? 'Analyserer GCode...' : 'Upload GCode fil'}
                       </span>
                     </div>
@@ -541,10 +541,10 @@ export default function STLTab() {
                 </>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between bg-zinc-900 p-2 rounded-lg border border-zinc-800">
+                  <div className="flex items-center justify-between bg-slate-900 p-2 rounded-lg border border-slate-700">
                     <div className="flex items-center gap-2 overflow-hidden">
-                      <FileCode2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span className="text-xs font-medium text-zinc-300 truncate" title={gcodeFileName}>
+                      <FileCode2 className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span className="text-xs font-medium text-slate-300 truncate" title={gcodeFileName}>
                         {gcodeFileName}
                       </span>
                     </div>
@@ -554,25 +554,25 @@ export default function STLTab() {
                         setGcodeFileName('');
                         setGcodeUploadStatus('idle');
                       }}
-                      className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors shrink-0"
+                      className="p-1.5 rounded-md hover:bg-slate-800 text-slate-500 hover:text-red-400 transition-colors shrink-0"
                       title="Fjern GCode"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Vis GCode sti</span>
+                    <span className="text-sm text-slate-300">Vis GCode sti</span>
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => setShowAllLayers(!showAllLayers)}
-                        className={`px-2 py-1 text-xs rounded-md transition-colors ${showAllLayers ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                        className={`px-2 py-1 text-xs rounded-md transition-colors ${showAllLayers ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-slate-900 text-slate-400 hover:bg-slate-700'}`}
                         title="Vis alle lag på én gang"
                       >
                         Alle lag
                       </button>
                       <button 
                         onClick={() => setShowGCode(!showGCode)}
-                        className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                        className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
                       >
                         {showGCode ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
@@ -583,9 +583,9 @@ export default function STLTab() {
                     <div className="space-y-2">
                       {!showAllLayers && (
                         <>
-                          <div className="flex justify-between text-xs text-zinc-400">
+                          <div className="flex justify-between text-xs text-slate-400">
                             <span>Lag 1</span>
-                            <span className="font-medium text-emerald-400">Lag {currentLayerIndex + 1} / {gcodeLayers.length}</span>
+                            <span className="font-medium text-blue-400">Lag {currentLayerIndex + 1} / {gcodeLayers.length}</span>
                           </div>
                           <input 
                             type="range" 
@@ -593,16 +593,16 @@ export default function STLTab() {
                             max={gcodeLayers.length - 1} 
                             value={currentLayerIndex} 
                             onChange={(e) => setCurrentLayerIndex(parseInt(e.target.value))}
-                            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                            className="w-full h-2 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-blue-500"
                           />
                         </>
                       )}
                       
                       {/* Speed Legend */}
-                      <div className="mt-3 pt-3 border-t border-zinc-800">
-                        <span className="text-xs text-zinc-400 mb-1.5 block">Hastighed (mm/s)</span>
+                      <div className="mt-3 pt-3 border-t border-slate-700">
+                        <span className="text-xs text-slate-400 mb-1.5 block">Hastighed (mm/s)</span>
                         <div className="h-1.5 w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 via-green-500 via-yellow-500 to-red-500"></div>
-                        <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
+                        <div className="flex justify-between text-[10px] text-slate-500 mt-1">
                           <span>0</span>
                           <span>60</span>
                           <span>120</span>
@@ -610,12 +610,12 @@ export default function STLTab() {
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-zinc-800">
-                        <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                      <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-slate-700">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
                           <div className="w-2 h-2 rounded-full bg-red-500"></div>
                           <span>Højhastigheds-hjørne (risiko for ringing)</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
                           <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                           <span>Køle-advarsel (for lidt køling)</span>
                         </div>
@@ -630,9 +630,9 @@ export default function STLTab() {
       </div>
 
       {/* 3D Viewport */}
-      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden relative min-h-[400px] group">
+      <div className="flex-1 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden relative min-h-[400px] group">
         {!geometry && (
-          <div className="absolute inset-0 flex items-center justify-center text-zinc-600">
+          <div className="absolute inset-0 flex items-center justify-center text-slate-600">
             Upload en STL fil for at se den her
           </div>
         )}
@@ -640,24 +640,24 @@ export default function STLTab() {
           <>
             {/* Viewport Controls Overlay */}
             <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 rounded-lg p-1 flex flex-col gap-1">
+              <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 rounded-lg p-1 flex flex-col gap-1">
                 <button 
                   onClick={() => setViewMode('solid')}
-                  className={`p-2 rounded-md transition-colors ${viewMode === 'solid' ? 'bg-emerald-500 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'solid' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
                   title="Solid visning"
                 >
                   <BoxIcon className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => setViewMode('wireframe')}
-                  className={`p-2 rounded-md transition-colors ${viewMode === 'wireframe' ? 'bg-emerald-500 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'wireframe' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
                   title="Wireframe visning"
                 >
                   <Layers className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => setViewMode('xray')}
-                  className={`p-2 rounded-md transition-colors ${viewMode === 'xray' ? 'bg-emerald-500 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'xray' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
                   title="X-Ray visning"
                 >
                   <Eye className="w-4 h-4" />
@@ -665,7 +665,7 @@ export default function STLTab() {
               </div>
               <button 
                 onClick={resetCamera}
-                className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                className="bg-slate-900/80 backdrop-blur-md border border-slate-700 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
                 title="Nulstil kamera"
               >
                 <Maximize2 className="w-4 h-4" />
