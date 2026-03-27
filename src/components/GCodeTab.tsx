@@ -893,6 +893,41 @@ export default function GCodeTab() {
                 <p className="text-sm text-slate-400 mb-4">
                   Her kan du se præcis hvilke kommandoer programmet har indsat i din G-kode for at løse problemerne.
                 </p>
+                
+                <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700/50">
+                  <h4 className="text-sm font-medium text-slate-300 mb-3">Hvad betyder kommandoerne?</h4>
+                  <ul className="text-xs text-slate-400 space-y-3">
+                    <li className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-blue-400 font-semibold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">M106 S[0-255]</span>
+                        <span className="text-slate-300">Styrer printkøleren (blæseren)</span>
+                      </div>
+                      <p className="pl-2 border-l-2 border-slate-700">S255 er 100% (maksimal køling), S0 er slukket. Bruges til at køle små lag hurtigt ned, så plastikken ikke overophedes.</p>
+                    </li>
+                    <li className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-blue-400 font-semibold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">M220 S[procent]</span>
+                        <span className="text-slate-300">Justerer printhastigheden globalt</span>
+                      </div>
+                      <p className="pl-2 border-l-2 border-slate-700">S100 er normal hastighed, S50 er halv hastighed. Bruges til at sænke farten ved skarpe hjørner eller lag med meget kort printtid for at sikre kvaliteten.</p>
+                    </li>
+                    <li className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-blue-400 font-semibold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">M221 S[procent]</span>
+                        <span className="text-slate-300">Justerer flow rate (ekstrudering) globalt</span>
+                      </div>
+                      <p className="pl-2 border-l-2 border-slate-700">S100 er normalt flow. Bruges til at finjustere mængden af plastik, der ekstruderes for at undgå over- eller underekstrudering.</p>
+                    </li>
+                    <li className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-blue-400 font-semibold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">M204 P[værdi]</span>
+                        <span className="text-slate-300">Justerer accelerationen for printbevægelser</span>
+                      </div>
+                      <p className="pl-2 border-l-2 border-slate-700">Lavere værdier (f.eks. P500) giver blødere bevægelser og reducerer "ghosting" og vibrationer ved skarpe hjørner.</p>
+                    </li>
+                  </ul>
+                </div>
+
                 <div className="bg-[#0f172a] rounded-lg p-4 overflow-y-auto max-h-80 font-mono text-xs text-slate-300 border border-slate-700">
                   {optimizationLogs.slice(0, 500).map((log, index) => (
                     <div key={index} className="flex gap-4 hover:bg-slate-800/50 px-2 py-1 rounded">
@@ -1334,7 +1369,9 @@ export default function GCodeTab() {
                   {layers.slice(0, visibleLayersCount).map((layer) => (
                     <tr 
                       key={layer.layerNum} 
-                      className={`border-b border-slate-700/50 last:border-0 transition-colors ${
+                      onClick={() => setSelectedLayer(layer)}
+                      className={`border-b border-slate-700/50 last:border-0 transition-colors cursor-pointer ${
+                        selectedLayer?.layerNum === layer.layerNum ? 'bg-blue-500/20 border-blue-500/50' :
                         layer.coolingWarning ? 'bg-amber-950/20' : 
                         layer.sharpCornerHighSpeedCount > 10 ? 'bg-red-950/20' : 
                         'hover:bg-slate-800/30'

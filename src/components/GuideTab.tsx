@@ -165,7 +165,7 @@ export default function GuideTab() {
                   <span>3D Lag Preview</span>
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Vælg et specifikt lag i tabellen for at se det visualiseret i 3D. Dette gør det nemt at inspicere præcis, hvordan problematiske lag ser ud, og hvor advarslerne opstår.
+                  Klik på et specifikt lag i tabellen for at se det visualiseret i 3D. Printstierne er farvekodede efter hastighed (blå er langsom, rød er hurtig). Hvis der er advarsler om "Hurtige hjørner", markeres de problematiske punkter med røde prikker i 3D-visningen.
                 </p>
               </div>
 
@@ -197,12 +197,47 @@ export default function GuideTab() {
               Optimér & Gem GCODE
             </h3>
             <p className="text-sm text-slate-400 leading-relaxed mb-6">
-              Når du klikker på "Optimér & Gem GCODE", gennemgår systemet din fil og indsætter specielle kommandoer (M106 for køling og M220 for hastighed) direkte i koden for at løse de fundne problemer.
+              Når du klikker på "Optimér & Gem GCODE", gennemgår systemet din fil og indsætter specielle kommandoer direkte i koden for at løse de fundne problemer. Her er de kommandoer, der kan blive indsat:
             </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-mono text-blue-400 font-semibold bg-slate-800 px-2 py-1 rounded text-xs border border-slate-700">M106 S[0-255]</span>
+                  <span className="text-sm font-medium text-slate-200">Printkøler</span>
+                </div>
+                <p className="text-xs text-slate-400">Styrer blæseren. S255 er 100% (maksimal køling). Indsættes ved små lag for at forhindre overophedning af plastikken.</p>
+              </div>
+              
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-mono text-blue-400 font-semibold bg-slate-800 px-2 py-1 rounded text-xs border border-slate-700">M220 S[procent]</span>
+                  <span className="text-sm font-medium text-slate-200">Printhastighed</span>
+                </div>
+                <p className="text-xs text-slate-400">Justerer hastigheden globalt. Indsættes for at sænke farten ved skarpe hjørner eller lag med meget kort printtid.</p>
+              </div>
+
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-mono text-blue-400 font-semibold bg-slate-800 px-2 py-1 rounded text-xs border border-slate-700">M221 S[procent]</span>
+                  <span className="text-sm font-medium text-slate-200">Flow Rate</span>
+                </div>
+                <p className="text-xs text-slate-400">Justerer ekstruderingen globalt. Indsættes hvis du har valgt at ændre den overordnede flow multiplier.</p>
+              </div>
+
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-mono text-blue-400 font-semibold bg-slate-800 px-2 py-1 rounded text-xs border border-slate-700">M204 P[værdi]</span>
+                  <span className="text-sm font-medium text-slate-200">Acceleration</span>
+                </div>
+                <p className="text-xs text-slate-400">Justerer accelerationen for printbevægelser. Indsættes for at reducere "ghosting" og vibrationer ved skarpe hjørner.</p>
+              </div>
+            </div>
+
             <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
               <p className="text-xs text-blue-500/80 leading-relaxed">
-                <strong>Bemærk:</strong> Optimeringen bruger standard G-code kommandoer (M106 til køling, M220 til hastighed) og fungerer på stort set alle moderne FDM-printere (BambuLab, Prusa, Creality, Anycubic m.fl.).
+                <strong>Bemærk:</strong> Optimeringen bruger standard G-code kommandoer og fungerer på stort set alle moderne FDM-printere (BambuLab, Prusa, Creality, Anycubic m.fl.). Du kan altid se præcis hvilke kommandoer der er indsat i loggen efter optimering.
               </p>
             </div>
           </div>
